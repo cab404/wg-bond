@@ -1,6 +1,8 @@
 wg-bond
 =======
 
+# All of the following is a draft, and is not actually functionality at the moment!
+
 Easy configuration of new Wireguard clients.
 
 ### Setup
