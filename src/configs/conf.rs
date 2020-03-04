@@ -59,7 +59,9 @@ impl ConfigType for ConfFile {
                     built.add_assign(a);
                     built.add_assign("\n");
                 }
-                None => {}
+                None => {
+                    built.add_assign("[Peer]\n");
+                }
             }
             let b_peer = net.map_to_peer(peer);
 
