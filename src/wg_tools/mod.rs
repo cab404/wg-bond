@@ -1,6 +1,5 @@
-use std::process::{Command, Stdio, ChildStdin, ChildStdout};
+use std::process::{Command, Stdio};
 use std::io::Write;
-use std::borrow::Borrow;
 
 fn read_key(from: &Vec<u8>) -> String {
     String::from_utf8(from.to_owned()).unwrap()

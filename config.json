@@ -1,25 +1,11 @@
 {
-  "address": "[beef::1]:63000",
-  "network": "beef::1/54",
-  "private_key": "qGXblVTE2WLpqPR+JWBqhcbvGkN+Z0zW9OaCn8Ta7WE=",
-  "name": "wgvpn",
-  "clients": [
-    {
-      "private_key": "MBLjKvAJcS5kKQPLGhnQYxNMeXJmdh6p6zhzl4hyYlA=",
-      "name": "some peer",
-      "id": 187677656789281,
-      "allowed_ips": [
-        "beef::/56"
-      ]
-    },
-    {
-      "private_key": "mHYz7Ew/NUccRrEATYl1CqwDnUTl8XxWhZD0zBA5vkc=",
-      "name": "haMephorash",
-      "id": 2098765432,
-      "allowed_ips": [
-        "192.168.1.0/24"
-      ]
-    }
+  "addresses": [
+    "beef::1"
   ],
+  "port": 63000,
+  "network": "beef::1/54",
+  "private_key": "8AhRqn/TG5FT66+kwk149pjCQi77N17GJVSd0r5/NG4=",
+  "name": "wgvpn",
+  "clients": [],
   "masquerade": true
 }
