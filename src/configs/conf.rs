@@ -66,6 +66,14 @@ impl ConfigType for ConfFile {
             let b_peer = net.map_to_peer(peer);
 
             built.cfg_param("PublicKey", &gen_public_key(&peer.private_key));
+
+            match &b_peer.endpoint {
+                Some(ip) => {
+                    built.cfg_param("Endpoint", &ip);
+                }
+                _ => {}
+            }
+
             let ips = &b_peer.allowed_ips;
             
             if !ips.is_empty() {

@@ -64,7 +64,7 @@ pub struct Peer {
     pub public_key: String,
     pub preshared_key: Option<String>,
     pub allowed_ips: Vec<IpNetwork>,
-    pub endpoint: Vec<SocketAddr>,
+    pub endpoint: Option<SocketAddr>,
     pub persistent_keepalive: Option<u16>,
 }
 
@@ -114,8 +114,7 @@ pub struct PeerInfo {
     pub private_key: String,
     pub id: u128,
     pub flags: Vec<PeerFlag>,
-    pub port: Option<u16>,
-    pub addresses: Vec<IpAddr>
+    pub endpoint: Option<SocketAddr>
 }
 
 impl PeerInfo {
@@ -133,7 +132,7 @@ impl PeerInfo {
         Interface {
             address: vec![],
             private_key: self.private_key.clone(),
-            port: self.port,
+            port: self.endpoint.map(|addr| addr.port()),
             dns: None,
             fwMark: None,
             table: None,
@@ -145,23 +144,10 @@ impl PeerInfo {
     }
 
     pub fn derive_peer(&self) -> Peer {
-        // If port is obtained dynamically, we can't get a proper endpoint.
-        let addresses = 
-            match self.port {
-                None => {
-                    vec![]
-                }
-                Some(port) => {
-                    self.addresses
-                        .iter()
-                        .map(|a| SocketAddr::new(a.clone(), port))
-                        .collect()
-                }
-            };
         Peer {
             public_key: wg_tools::gen_public_key(&self.private_key),
             allowed_ips: vec![],
-            endpoint: addresses,
+            endpoint: self.endpoint,
             persistent_keepalive: None,
             preshared_key: None
         }
