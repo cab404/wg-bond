@@ -4,11 +4,14 @@ extern crate serde;
 extern crate serde_json;
 extern crate qrcode;
 
+use crate::configs::conf_writer;
+use crate::configs::ConfigType;
 use std::str::FromStr;
 use ipnetwork::{IpNetwork};
-use configs::conf::ConfFile;
+
 use configs::nix::NixConf;
 use configs::qr::QRConfig;
+use configs::conf::ConfFile;
 
 use clap;
 
@@ -19,17 +22,7 @@ mod wg_tools;
 mod configs;
 use std::iter::*;
 
-// type editablecfg: &mut configs::WireguardNetworkInfo
-
-fn default_config() -> configs::WireguardNetworkInfo {
-    configs::WireguardNetworkInfo {
-        name: "wgvpn".to_string(),
-        network: IpNetwork::from_str("10.0.0.0/24").unwrap(),
-        peers: vec![]
-    }
-}
-
-fn read_config(fname: &str) -> configs::WireguardNetworkInfo {
+fn read_config(fname: &str) -> Result<configs::WireguardNetworkInfo, String> {
     debug!("Opening config from {}", fname);
 
     match std::fs::OpenOptions::new().create(false).read(true).open(fname) {
@@ -37,25 +30,23 @@ fn read_config(fname: &str) -> configs::WireguardNetworkInfo {
             let result : Result<configs::WireguardNetworkInfo, serde_json::Error> = serde_json::from_reader(std::io::BufReader::new(handle));
             match result {
                 Ok(net) => {
-                    net
+                    Ok(net)
                 }
                 Err(serde_err) => {
-                    warn!("Cannot deserialize config file, {}", serde_err);
-                    default_config()
+                    Err(format!("Cannot deserialize config file, {}", serde_err))
                 }
             }
         }
         Err(fs_err) => {
-            warn!("Cannot open config file, {}", fs_err);
-            default_config()
+            Err(format!("Cannot open config file, {}", fs_err))
         }
     }
 
 }
 
-fn write_config(cfg: &configs::WireguardNetworkInfo, fname: &str) -> Result<(), std::io::Error> {
+fn save_config(cfg: &configs::WireguardNetworkInfo, fname: &str) -> Result<(), std::io::Error> {
     std::fs::OpenOptions::new()
-        .create(true).write(true).open(fname)
+        .create(true).write(true).truncate(true).open(fname)
         .map(|f| std::io::BufWriter::new(f) )
         .and_then(|writer| Ok(serde_json::to_writer_pretty(writer, cfg).unwrap()))
 }
@@ -64,7 +55,20 @@ fn new_id(cfg: &configs::WireguardNetworkInfo) -> u128 {
     cfg.peers.iter().map(|i| i.id).max().unwrap_or(0) + 1
 }
 
-fn new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::ArgMatches) {    
+fn command_init_config(matches: &clap::ArgMatches) -> configs::WireguardNetworkInfo {
+
+    let name: &str = matches.value_of("name").unwrap();
+    let net: &str = matches.value_of("network").unwrap();
+
+    configs::WireguardNetworkInfo {
+        name: name.to_string(),
+        network: IpNetwork::from_str(net).unwrap(),
+        peers: vec![]
+    }
+
+}
+
+fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::ArgMatches) -> Result<(), u8>  {
     let peer_id = new_id(cfg);
     let name: String = matches.value_of("name").unwrap().into();
 
@@ -75,7 +79,21 @@ fn new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::ArgMatches)
         private_key: wg_tools::gen_private_key(),
         flags: vec![]
     }]);
-    info!("Peer with id {id} added!", id = peer_id);    
+
+    info!("Peer with id {id} added!", id = peer_id);
+
+    Ok(())
+}
+
+fn command_export(cfg: &configs::WireguardNetworkInfo, matches: &clap::ArgMatches, exporter: conf_writer) -> Result<(), u8> {
+    let id = u128::from_str(matches.value_of("id").unwrap()).unwrap();
+    if let Some(_) = cfg.by_id(id) {
+        println!("{}", exporter(&cfg, id));
+        Ok(())
+    } else {
+        error!("Peer (id={id}) not found!", id=id);
+        Err(1)
+    }
 }
 
 fn main() {
@@ -96,6 +114,23 @@ fn main() {
                 .use_delimiter(false)
         )
         .subcommand(
+            clap::SubCommand::with_name("init")
+                .about("Initializes a config file")
+                .arg(clap::Arg::with_name("name")
+                    .help("Network name")
+                    .required(true)
+                )
+                .arg(clap::Arg::with_name("network")
+                    .short("n")
+                    .long("network")
+                    .help("Network for peers to use")
+                    .value_name("IP/MASK")
+                    .default_value("10.0.0.0/24")
+                    .use_delimiter(false)
+                    .takes_value(true)
+                )
+        )
+        .subcommand(
             clap::SubCommand::with_name("add")
                 .about("Adds a new peer to the network")
                 .arg(clap::Arg::with_name("name")
@@ -111,49 +146,56 @@ fn main() {
                     .help("Id of a peer")
                 )
         )
+        .subcommand(
+            clap::SubCommand::with_name("qr")
+                .about("Generates QR code with config")
+                .arg(clap::Arg::with_name("id")
+                    .help("Id of a peer")
+                )
+        )
+        .subcommand(
+            clap::SubCommand::with_name("conf")
+                .about("Generates wg-quick configs")
+                .arg(clap::Arg::with_name("id")
+                    .help("Id of a peer")
+                )
+        )
         .get_matches();
-    
-    let cfg_file = args.value_of("config").unwrap();
-    let mut net = read_config(cfg_file);
 
-    if let Some(matches) = args.subcommand_matches("add") {
-        new_peer(&mut net, matches);
+    let cfg_file = args.value_of("config").unwrap();
+
+    let mut net =
+        if let Some(matches) = args.subcommand_matches("init") {
+            command_init_config(matches)
+        } else {
+            read_config(cfg_file).unwrap()
+        };
+
+    fn commands(net: &mut configs::WireguardNetworkInfo, args: &clap::ArgMatches) -> Result<(), u8> {
+
+        if let Some(matches) = args.subcommand_matches("add") {
+            command_new_peer(net, matches)?;
+        }
+
+        if let Some(matches) = args.subcommand_matches("nix") {
+            command_export(net, matches, NixConf::write_config)?;
+        }
+
+        if let Some(matches) = args.subcommand_matches("conf") {
+            command_export(net, matches, ConfFile::write_config)?;
+        }
+
+        if let Some(matches) = args.subcommand_matches("qr") {
+            command_export(net, matches, QRConfig::write_config)?;
+        }
+
+        Ok(())
+
     }
 
-    write_config(&net, cfg_file).unwrap();
+    commands(&mut net, &args).unwrap();
 
-    // let mut net = configs::WireguardNetworkInfo {
-    //     name: "wgvpn".to_string(),
-    //     network: IpNetwork::from_str("10.0.0.0/24").unwrap(),
-    //     peers: vec![
-    //         configs::PeerInfo {
-    //             name: Some("One peer".to_string()), 
-    //             endpoint: Some(SocketAddr::from_str("73.2.1.3:64000").unwrap()),
-    //             id: 88,
-    //             private_key: wg_tools::gen_private_key(),
-    //             flags: vec![
-    //                 configs::PeerFlag::Masquerade { interface: "eth0".to_string() },
-    //                 configs::PeerFlag::Gateway { ignore_local_networks: true },
-    //             ]
-    //         },
-    //         configs::PeerInfo {
-    //             name: Some("Another peer".to_string()), 
-    //             endpoint: None,
-    //             id: 89,
-    //             private_key: wg_tools::gen_private_key(),
-    //             flags: vec![
-    //                 configs::PeerFlag::Keepalive { keepalive: 32 },
-    //             ]
-    //         }
-    //     ]
-    // };
-    // new_peer(&mut net, "test".into());
-
-    // println!("{}", serde_json::to_string_pretty(&net).unwrap());
-
-    // for a in net.peers.iter() {
-    //     println!("{}", ConfFile::write_config(&net, a.id));
-    // }
+    save_config(&net, cfg_file).unwrap();
 
 }
 
