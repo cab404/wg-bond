@@ -49,13 +49,13 @@ pub struct Interface {
     pub private_key: String,
     pub address: Vec<IpAddr>,
     pub port: Option<u16>,
-    pub dns: Option<IpAddr>,
-    pub fwMark: Option<u32>,
+    pub dns: Vec<IpAddr>,
+    pub fw_mark: Option<u32>,
     pub table: Option<String>,
-    pub preUp: Option<String>,
-    pub postUp: Option<String>,
-    pub preDown: Option<String>,
-    pub postDown: Option<String>,
+    pub pre_up: Option<String>,
+    pub post_up: Option<String>,
+    pub pre_down: Option<String>,
+    pub post_down: Option<String>,
 }
 
 // Mapping of wg-quick peer.
@@ -83,14 +83,14 @@ impl PeerFlag {
                 let iptables_bring_up = format!("iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-A", &network.network, if_name); 
                 let iptables_bring_down = format!("iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-D", &network.network, if_name); 
 
-                interface.preUp = Some(iptables_bring_up.to_string());
-                interface.preDown = Some(iptables_bring_down.to_string());
+                interface.pre_up = Some(iptables_bring_up.to_string());
+                interface.pre_down = Some(iptables_bring_down.to_string());
             }
             _ => {}
         }
     }
 
-    fn apply_to_peer(&self, network: &WireguardNetworkInfo, peer: &mut Peer) {
+    fn apply_to_peer(&self, _network: &WireguardNetworkInfo, peer: &mut Peer) {
         match self {
             PeerFlag::Gateway { ignore_local_networks } => {
                 if *ignore_local_networks {
@@ -119,27 +119,18 @@ pub struct PeerInfo {
 
 impl PeerInfo {
 
-    fn is_gateway(&self) -> bool {
-        self.flags.iter().any(
-            |a| match a {
-                PeerFlag::Masquerade { interface } => { true }
-                _ => { false }
-            }
-        )
-    }
-
     pub fn derive_interface(&self) -> Interface {
         Interface {
             address: vec![],
             private_key: self.private_key.clone(),
             port: self.endpoint.map(|addr| addr.port()),
-            dns: None,
-            fwMark: None,
+            dns: vec![],
+            fw_mark: None,
             table: None,
-            preUp: None,
-            postUp: None,
-            preDown: None,
-            postDown: None
+            pre_up: None,
+            post_up: None,
+            pre_down: None,
+            post_down: None
         }
     }
 
@@ -189,6 +180,15 @@ impl WireguardNetworkInfo {
         }
         interface
     }
+
+    pub fn by_id(&self, id: u128) -> Option<&PeerInfo> {
+        for peer in self.peers.iter() {
+            if peer.id == id {
+                return Some(peer)
+            }
+        }
+        return None
+    }
 }
 
 fn get_network_address_v4(net: &Ipv4Network, num: u32) -> Ipv4Addr {
@@ -207,6 +207,8 @@ pub fn get_network_address(net: &IpNetwork, num: u128) -> IpAddr {
         IpNetwork::V6(n) => IpAddr::V6(get_network_address_v6(&n, num.try_into().unwrap())),
     }
 }
+
+pub type conf_writer = fn(net: &WireguardNetworkInfo, id: u128) -> String;
 
 pub trait ConfigType {
     fn write_config(net: &WireguardNetworkInfo, id: u128) -> String;

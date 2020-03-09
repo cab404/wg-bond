@@ -29,10 +29,10 @@ impl ConfigType for NixConf {
       .map(|peer| net.map_to_peer(peer))
       .collect();
 
-    fn write(key: &String, value: &Option<&String>) -> String {
+    fn set_assign(key: &str, value: Option<impl core::fmt::Display>) -> String {
       match value {
         Some(val) => {
-          format!("{} = \"{}\";", key, val)
+          format!("{}=\"{}\";", key, val)
         }
         _ => {
           "".into()
@@ -43,58 +43,38 @@ impl ConfigType for NixConf {
     let interface = net.map_to_interface(my_peer);
 
     let mut built = String::new();
-    built += format!("networking.wg-quick.interfaces.\"{}\" = {{", &net.name).as_str();
-    built += format!(" privateKey = \"{}\";", &my_peer.private_key).as_str();
-    match &my_peer.port {
-      Some(port) => {
-        built += format!(" listenPort = \"{}\";", port).as_str();
-      }
-      _ => {}
+    built += format!("networking.wg-quick.interfaces.\"{}\"={{", &net.name).as_str();
+    built += format!("privateKey=\"{}\";", &my_peer.private_key).as_str();
+
+    built += set_assign("listenPort", my_peer.endpoint.map(|a| a.port())).as_str();
+
+    fn wrap_string<T>(thing: &T) -> String where T : core::fmt::Display {
+      format!("\"{}\"", thing)
     }
-    
+
     // Addresses
-    built += format!(" ips = [ {} ];\n", &my_peer.addresses.iter().map(|addr| format!("\"{}\"", addr.to_string())).collect::<Vec<String>>().join(" ")).as_str();
+    built += format!("ips=[{}];", &interface.address.iter().map(wrap_string).collect::<Vec<String>>().join(" ")).as_str();
+
+    built += set_assign("preUp", interface.pre_up).as_str();
+    built += set_assign("preDown", interface.pre_down).as_str();
+    built += set_assign("postUp", interface.post_up).as_str();
+    built += set_assign("postDown", interface.post_down).as_str();
 
     // Peers
     fn encode_peer(peer: &Peer) -> String {
       let mut built = String::new();
       built += "{";
-      built += format!(" publicKey = \"{}\";", peer.public_key).as_str();
-      built += format!(" allowedIPs = [ {} ];", peer.allowed_ips.iter().map(|addr| format!("\"{}\"", addr.to_string())).collect::<Vec<String>>().join(" ")).as_str();     
-      built += format!(" endpoints = [ {} ];", peer.endpoint.iter().map(|addr| format!("\"{}\"", addr.to_string())).collect::<Vec<String>>().join(" ")).as_str();     
-      match peer.persistent_keepalive {
-        Some(keepalive) => {
-          built += format!(" persistentKeepalive = {};", keepalive).as_str();
-        }
-        _ => {}
-      }
+      built += set_assign("publicKey", Some(&peer.public_key)).as_str();
+      built += format!("allowedIPs=[{}];", peer.allowed_ips.iter().map(wrap_string).collect::<Vec<String>>().join(" ")).as_str();     
+      built += set_assign("persistentKeepalive", peer.persistent_keepalive).as_str();
+      built += set_assign("endpoint", peer.endpoint).as_str();
       built += "}";
       built
     }
 
-    built += format!(" peers = [ {} ];", &other_peers.iter().map(|peer| encode_peer(peer)).collect::<Vec<String>>().join(", ")).as_str();
+    built += format!("peers=[{}];", &other_peers.iter().map(|peer| encode_peer(peer)).collect::<Vec<String>>().join(" ")).as_str();
 
-    /*
-      networking.wg-quick.interfaces.wg0 = {
-        privateKey = "...";
-        ips = [ ... ];
-        peers = [
-          {
-            allowedIPs = [ ... ];
-            persistentKeepalive = 30;
-            endpoint = "...";
-            publicKey = "...";
-          }
-        ];
-      };
-    */
-    // let mut built = String::new();
-    // built += format!("networking.wg-quick.interfaces.{} = {{", &server.name).as_str();
-    // built += format!("privateKey = \"{}\";", &server.private_key).as_str();
-    // built += "ips = [";
-    // built += "];";
     built += "};";
-
 
     built
 
