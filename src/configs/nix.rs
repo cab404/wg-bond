@@ -1,19 +1,11 @@
 // ! Wireguard conf file
 // Better way of doing this is invoking builtins.fromJSON, but that's not portable.
 
-use std::ops::AddAssign;
-
 use crate::configs::*;
-use crate::wg_tools::*;
-use std::iter::*;
-use std::borrow::Cow;
 
 pub struct NixConf {}
 
 impl ConfigType for NixConf {
-  // fn write_config(info: &PeerInfo, peer: &Peer) -> String {
-
-  //   }
 
   fn write_config(net: &WireguardNetworkInfo, id: u128) -> String {
     let my_peer = net

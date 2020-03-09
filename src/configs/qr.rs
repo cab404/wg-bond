@@ -1,11 +1,8 @@
 // ! Wireguard conf file
 // Better way of doing this is invoking builtins.fromJSON, but that's not portable.
 
-use std::ops::AddAssign;
 
 use crate::configs::*;
-use crate::wg_tools::*;
-use std::iter::*;
 use crate::configs::conf;
 
 use qrcode::QrCode;
