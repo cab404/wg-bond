@@ -38,7 +38,7 @@ impl ConfigType for NixConf {
     built += format!("networking.wg-quick.interfaces.\"{}\"={{", &net.name).as_str();
     built += format!("privateKey=\"{}\";", &my_peer.private_key).as_str();
 
-    built += set_assign("listenPort", my_peer.endpoint.map(|a| a.port())).as_str();
+    built += set_assign("listenPort", my_peer.endpoint.as_ref().map(get_port)).as_str();
 
     fn wrap_string<T>(thing: &T) -> String where T : core::fmt::Display {
       format!("\"{}\"", thing)
@@ -59,7 +59,7 @@ impl ConfigType for NixConf {
       built += set_assign("publicKey", Some(&peer.public_key)).as_str();
       built += format!("allowedIPs=[{}];", peer.allowed_ips.iter().map(wrap_string).collect::<Vec<String>>().join(" ")).as_str();     
       built += set_assign("persistentKeepalive", peer.persistent_keepalive).as_str();
-      built += set_assign("endpoint", peer.endpoint).as_str();
+      built += set_assign("endpoint", peer.endpoint.as_deref()).as_str();
       built += "}";
       built
     }

@@ -4,8 +4,8 @@ extern crate serde;
 extern crate serde_json;
 extern crate qrcode;
 
-use crate::configs::conf_writer;
-use crate::configs::ConfigType;
+use crate::configs::check_endpoint;
+use crate::configs::{ConfigType, ConfigWriter};
 use std::str::FromStr;
 use ipnetwork::{IpNetwork};
 
@@ -71,10 +71,11 @@ fn command_init_config(matches: &clap::ArgMatches) -> configs::WireguardNetworkI
 fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::ArgMatches) -> Result<(), u8>  {
     let peer_id = new_id(cfg);
     let name: String = matches.value_of("name").unwrap().into();
+    let endpoint = matches.value_of("endpoint").and_then(|a| check_endpoint(&a.into()));
 
     cfg.peers.append(&mut vec![configs::PeerInfo {
         name: Some(name),
-        endpoint: None,
+        endpoint: endpoint,
         id: peer_id,
         private_key: wg_tools::gen_private_key(),
         flags: vec![]
@@ -85,7 +86,7 @@ fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Arg
     Ok(())
 }
 
-fn command_export(cfg: &configs::WireguardNetworkInfo, matches: &clap::ArgMatches, exporter: conf_writer) -> Result<(), u8> {
+fn command_export(cfg: &configs::WireguardNetworkInfo, matches: &clap::ArgMatches, exporter: ConfigWriter) -> Result<(), u8> {
     let id = u128::from_str(matches.value_of("id").unwrap()).unwrap();
     if let Some(_) = cfg.by_id(id) {
         println!("{}", exporter(&cfg, id));
@@ -136,6 +137,14 @@ fn main() {
                 .arg(clap::Arg::with_name("name")
                     .help("Name for a new peer")
                     .required(true)
+                )
+                .arg(clap::Arg::with_name("endpoint")
+                    .short("e")
+                    .long("endpoint")
+                    .help("Endpoint address of a peer")
+                    .value_name("example.com:8080")
+                    .use_delimiter(false)
+                    .takes_value(true)
                 )
 
         )

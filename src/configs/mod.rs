@@ -1,10 +1,12 @@
+use std::fmt::Display;
 use ipnetwork::{IpNetwork, Ipv4Network, Ipv6Network};
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use crate::wg_tools;
 use std::iter::*;
 use std::str::FromStr;
+use url::Host;
 
 pub mod conf;
 pub mod nix;
@@ -43,6 +45,56 @@ const GLOBAL_NET: &[&str; 30] = &[
     "208.0.0.0/4",
 ];
 
+/// Checks if endpoint is a valid ip or domain, and extracts port from it.
+/// ```
+/// assert_eq!(parse_url("test:8080"), Some((Host::Domain("test".to_string()), 8080)));
+/// ```
+fn split_endpoint(address: &String) -> Option<(Host, u16)> {
+    let split = address.rsplitn(2, ':').collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>();
+    if split.len() == 2 {
+        if let (Some(host), Some(port)) = (
+                Host::parse(split[0]).map(Some).unwrap_or(None), 
+                u16::from_str(split[1]).map(Some).unwrap_or(None)
+            ) {
+                Some((host, port))
+            } else {
+                None
+            }
+
+    } else {
+        None
+    }
+}
+#[test]
+fn test_parse_endpoint() {
+    assert_eq!(split_endpoint(&"test:8080".into()), Some((Host::Domain("test".into()), 8080)));
+    assert_eq!(split_endpoint(&"@:8080".into()), None);
+}
+
+pub fn get_port(address: &String) -> u16 {
+    split_endpoint(address).expect("Failed to parse endpoint!").1
+}
+
+#[test]
+pub fn test_get_port() {
+    assert_eq!(get_port(&"test:8080".into()), 8080);
+}
+
+/// Checks whether given string is a valid endpoint
+pub fn check_endpoint(address: &String) -> Option<String> {
+    if let Some(_) = split_endpoint(address) {
+        Some(address.clone())
+    } else {
+        None
+    }
+}
+
+#[test]
+pub fn test_check_endpoint() {
+    assert_eq!(check_endpoint(&"test:8080".into()), Some("test:8080".into()));
+    assert_eq!(check_endpoint(&"test::".into()), None);
+}
+
 // Mapping of wg-quick interface.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Interface {
@@ -64,7 +116,7 @@ pub struct Peer {
     pub public_key: String,
     pub preshared_key: Option<String>,
     pub allowed_ips: Vec<IpNetwork>,
-    pub endpoint: Option<SocketAddr>,
+    pub endpoint: Option<String>,
     pub persistent_keepalive: Option<u16>,
 }
 
@@ -114,7 +166,7 @@ pub struct PeerInfo {
     pub private_key: String,
     pub id: u128,
     pub flags: Vec<PeerFlag>,
-    pub endpoint: Option<SocketAddr>
+    pub endpoint: Option<String>
 }
 
 impl PeerInfo {
@@ -123,7 +175,7 @@ impl PeerInfo {
         Interface {
             address: vec![],
             private_key: self.private_key.clone(),
-            port: self.endpoint.map(|addr| addr.port()),
+            port: self.endpoint.as_ref().map(get_port),
             dns: vec![],
             fw_mark: None,
             table: None,
@@ -138,7 +190,7 @@ impl PeerInfo {
         Peer {
             public_key: wg_tools::gen_public_key(&self.private_key),
             allowed_ips: vec![],
-            endpoint: self.endpoint,
+            endpoint: self.endpoint.clone(),
             persistent_keepalive: None,
             preshared_key: None
         }
@@ -208,7 +260,7 @@ pub fn get_network_address(net: &IpNetwork, num: u128) -> IpAddr {
     }
 }
 
-pub type conf_writer = fn(net: &WireguardNetworkInfo, id: u128) -> String;
+pub type ConfigWriter = fn(net: &WireguardNetworkInfo, id: u128) -> String;
 
 pub trait ConfigType {
     fn write_config(net: &WireguardNetworkInfo, id: u128) -> String;
