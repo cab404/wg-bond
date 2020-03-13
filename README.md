@@ -1,27 +1,42 @@
 wg-bond
 =======
 
-# All of the following is a draft, and is not actual functionality at the moment!
+Easy Wireguard configurator.
 
-Easy configuration of new Wireguard clients.
+![preview](./peek.gif)
+
 
 ### Setup
 
-On a server:
-
-##### Initialize a config:
+#### Initialize a config:
 
 ```shell script
-$ wgbond init interface-name
+$ wgbond init wgvpn
 ```
 
-It will create wgbond.json in a current directory.
+It will create wg-bond.json in a current directory.
 
-##### Set your wireguard server ip address:
+
+#### Add peers:
 
 ```shell script
-$ wgbond set address=[address]
+$ wgbond add testpeer --endpoint=example.com:42000
 ```
+
+#### Generate configs:
+
+```shell script
+$ wgbond conf 1 # Referencing hosts by name is not here yet
+```
+
+#### Set your wireguard server ip address:
+
+```shell script
+$ wgbond edit [ID] --endpoint=[address]
+```
+
+
+# All of the following is a draft, and is not actual functionality at the moment!
 
 ##### Bind another computer securely over HTTP
 
@@ -30,20 +45,10 @@ IANA is evil, HTTPS is broken, yada yada.
 On a server:
 
 ```shell script
-$ wgbond add onetime
+$ wgbond onetime
+Starting server...
 curl http://[address]/SoM3t0K3n/interface-name.conf | unzip -P 'A/s3kr3t/C0D3'
 ```
 
 Run this command, and you'll get a configuration.
 You also can get a Nix configuration by substituting `.conf` by `.nix` in a URL.
-
-##### Bind via QR code
-
-On a server:
-
-```shell script
-$ wgbond add qr
-# ### ## IMAGINE A QR CODE HERE #### # ## #
-```
-
-Scan a qr code, and you are good to go.
