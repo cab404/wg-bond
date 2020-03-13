@@ -110,7 +110,7 @@ fn main() {
                 .long("config")
                 .help("Config file to use")
                 .value_name("FILE")
-                .default_value("config.json")
+                .default_value("wg-bond.json")
                 .takes_value(true)
                 .use_delimiter(false)
         )
