@@ -61,16 +61,11 @@ impl ConfigType for ConfFile {
         built.cfg_param_opt("PostDown", interface.post_down);
 
         for peer in other_peers.iter() {
-            match &peer.name {
-                Some(a) => {
-                    built.add_assign("[Peer] # ");
-                    built.add_assign(a);
-                    built.add_assign("\n");
-                }
-                None => {
-                    built.add_assign("[Peer]\n");
-                }
-            }
+
+            built.add_assign("[Peer] # ");
+            built.add_assign(peer.name.as_str());
+            built.add_assign("\n");
+
             let b_peer = net.map_to_peer(peer);
 
             built.cfg_param("PublicKey", &gen_public_key(&peer.private_key));

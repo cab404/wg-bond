@@ -91,9 +91,13 @@ fn parse_peer_edit_command(peer: &mut configs::PeerInfo, matches: &clap::ArgMatc
 fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::ArgMatches) -> Result<(), u8>  {
     let peer_id = new_id(cfg);
     let name: String = matches.value_of("name").unwrap().into();
+    if let Some(_) = cfg.by_name(&name) {
+        println!("Peer with that name already exist!");
+        return Err(1)
+    }
 
     let mut peer = configs::PeerInfo {
-        name: Some(name),
+        name: name,
         endpoint: None,
         id: peer_id,
         private_key: wg_tools::gen_private_key(),
@@ -104,39 +108,31 @@ fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Arg
 
     cfg.peers.append(&mut vec![peer]);
 
-    info!("Peer with id {id} added!", id = peer_id);
+    info!("Peer added!");
 
     Ok(())
 }
 
 
 fn command_edit_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::ArgMatches) -> Result<(), u8>  {
-    // let peer_id = new_id(cfg);
-    let _name: String = matches.value_of("name").unwrap().into();
+    let name: String = matches.value_of("name").unwrap().into();
+    let mut peer = cfg.by_name_mut(&name).expect("No peer with this name.");
 
-    // let mut peer = cfg.by_id(peer_id).expect("No peer with this id.");
-
-    parse_peer_edit_command(&mut cfg.peers[0], matches);
-
-    // info!("Peer with id {id} added!", id = peer_id);
+    parse_peer_edit_command(&mut peer, matches);
 
     Ok(())
 }
 
 
 fn command_export(cfg: &configs::WireguardNetworkInfo, matches: &clap::ArgMatches, exporter: ConfigWriter) -> Result<(), u8> {
-    let id = u128::from_str(matches.value_of("id").unwrap()).unwrap();
-    if let Some(_) = cfg.by_id(id) {
-        println!("{}", exporter(&cfg, id));
-        Ok(())
-    } else {
-        error!("Peer (id={id}) not found!", id=id);
-        Err(1)
-    }
+    let name: String = matches.value_of("name").unwrap().into();
+    let peer = cfg.by_name(&name).expect("No peer with this name.");
+    println!("{}", exporter(&cfg, peer.id));
+    Ok(())
 }
 
 fn edit_params<'a, 'b>(subcommand: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
-        subcommand
+    subcommand
         .arg(clap::Arg::with_name("endpoint")
             .short("e")
             .long("endpoint")
@@ -159,6 +155,14 @@ fn edit_params<'a, 'b>(subcommand: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
             .use_delimiter(false)
             .takes_value(true)
             .value_name("INTERFACE")
+        )
+}
+
+fn export_params<'a, 'b>(subcommand: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
+    subcommand
+        .arg(clap::Arg::with_name("name")
+            .help("Name of a new peer")
+            .required(true)
         )
 }
 
@@ -216,25 +220,16 @@ fn main() {
 
         )
         .subcommand(
-            clap::SubCommand::with_name("nix")
+            export_params(clap::SubCommand::with_name("nix"))
                 .about("Generates Nix configs")
-                .arg(clap::Arg::with_name("id")
-                    .help("Id of a peer")
-                )
         )
         .subcommand(
-            clap::SubCommand::with_name("qr")
+            export_params(clap::SubCommand::with_name("qr"))
                 .about("Generates QR code with config")
-                .arg(clap::Arg::with_name("id")
-                    .help("Id of a peer")
-                )
         )
         .subcommand(
-            clap::SubCommand::with_name("conf")
+            export_params(clap::SubCommand::with_name("conf"))
                 .about("Generates wg-quick configs")
-                .arg(clap::Arg::with_name("id")
-                    .help("Id of a peer")
-                )
         )
         .get_matches();
 

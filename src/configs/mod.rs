@@ -168,7 +168,7 @@ impl PeerFlag {
 // Information about a peer
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PeerInfo {
-    pub name: Option<String>,
+    pub name: String,
     pub private_key: String,
     pub id: u128,
     pub flags: Vec<PeerFlag>,
@@ -239,14 +239,24 @@ impl WireguardNetworkInfo {
         interface
     }
 
-    pub fn by_id(&self, id: u128) -> Option<&PeerInfo> {
-        for peer in self.peers.iter() {
-            if peer.id == id {
-                return Some(peer)
+    pub fn by_name_mut(&mut self, name: &String) -> Option<&mut PeerInfo> {
+        for i in 0..self.peers.len() {
+            if &self.peers[i].name == name {
+                return Some(&mut self.peers[i])
             }
         }
         return None
     }
+
+    pub fn by_name(&self, name: &String) -> Option<&PeerInfo> {
+        for peer in self.peers.iter() {
+            if &peer.name == name {
+                return Some(&peer)
+            }
+        }
+        return None
+    }
+
 }
 
 fn get_network_address_v4(net: &Ipv4Network, num: u32) -> Ipv4Addr {
