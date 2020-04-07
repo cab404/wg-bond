@@ -1,0 +1,13 @@
+include:
+  template: Jobs/Code-Quality.gitlab-ci.yml
+
+test:cargo:
+  image: "rust:latest"
+  
+  script:
+    - rustc --version && cargo --version
+    - cargo test --all --verbose
+
+  before_script:
+    - apt-get update -yqq
+    - apt-get install -yqq --no-install-recommends build-essential
