@@ -69,23 +69,60 @@ fn command_init_config(matches: &clap::ArgMatches) -> configs::WireguardNetworkI
 
 }
 
+fn parse_peer_edit_command(peer: &mut configs::PeerInfo, matches: &clap::ArgMatches) {
+
+    if let Some(endpoint) = matches.value_of("endpoint") {
+        peer.endpoint = check_endpoint(&endpoint.into());
+    }
+
+    if let Some(interface) = matches.value_of("masquerade") {
+        peer.flags.insert(0, configs::PeerFlag::Masquerade { interface: interface.into() })
+    }
+
+    if matches.is_present("gateway") {
+        peer.flags.insert(0, configs::PeerFlag::Gateway { ignore_local_networks: true })
+    }
+
+    peer.flags.sort_by(|a, b| a.as_ref().cmp(b.as_ref()));
+    peer.flags.dedup_by(|a, b| a.as_ref() == b.as_ref());
+
+}
+
 fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::ArgMatches) -> Result<(), u8>  {
     let peer_id = new_id(cfg);
     let name: String = matches.value_of("name").unwrap().into();
-    let endpoint = matches.value_of("endpoint").and_then(|a| check_endpoint(&a.into()));
 
-    cfg.peers.append(&mut vec![configs::PeerInfo {
+    let mut peer = configs::PeerInfo {
         name: Some(name),
-        endpoint: endpoint,
+        endpoint: None,
         id: peer_id,
         private_key: wg_tools::gen_private_key(),
         flags: vec![]
-    }]);
+    };
+
+    parse_peer_edit_command(&mut peer, matches);
+
+    cfg.peers.append(&mut vec![peer]);
 
     info!("Peer with id {id} added!", id = peer_id);
 
     Ok(())
 }
+
+
+fn command_edit_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::ArgMatches) -> Result<(), u8>  {
+    // let peer_id = new_id(cfg);
+    let name: String = matches.value_of("name").unwrap().into();
+
+    // let mut peer = cfg.by_id(peer_id).expect("No peer with this id.");
+
+    parse_peer_edit_command(&mut cfg.peers[0], matches);
+
+    // info!("Peer with id {id} added!", id = peer_id);
+
+    Ok(())
+}
+
 
 fn command_export(cfg: &configs::WireguardNetworkInfo, matches: &clap::ArgMatches, exporter: ConfigWriter) -> Result<(), u8> {
     let id = u128::from_str(matches.value_of("id").unwrap()).unwrap();
@@ -96,6 +133,33 @@ fn command_export(cfg: &configs::WireguardNetworkInfo, matches: &clap::ArgMatche
         error!("Peer (id={id}) not found!", id=id);
         Err(1)
     }
+}
+
+fn edit_params<'a, 'b>(subcommand: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
+        subcommand
+        .arg(clap::Arg::with_name("endpoint")
+            .short("e")
+            .long("endpoint")
+            .help("Endpoint address of a peer")
+            .value_name("ADDRESS:PORT")
+            .use_delimiter(false)
+            .takes_value(true)
+        )
+        .arg(clap::Arg::with_name("gateway")
+            .short("G")
+            .long("gateway")
+            .help("Whether this peer is a gateway. You may also need -M.")
+            .use_delimiter(false)
+            .takes_value(false)
+        )
+        .arg(clap::Arg::with_name("masquerade")
+            .short("M")
+            .long("masquerade")
+            .help("Whether to enable iptables masquerade on this peer. Useful with -G option.")
+            .use_delimiter(false)
+            .takes_value(true)
+            .value_name("INTERFACE")
+        )
 }
 
 fn main() {
@@ -134,19 +198,20 @@ fn main() {
                 )
         )
         .subcommand(
-            clap::SubCommand::with_name("add")
+            edit_params(clap::SubCommand::with_name("add"))
                 .about("Adds a new peer to the network")
                 .arg(clap::Arg::with_name("name")
                     .help("Name for a new peer")
                     .required(true)
                 )
-                .arg(clap::Arg::with_name("endpoint")
-                    .short("e")
-                    .long("endpoint")
-                    .help("Endpoint address of a peer")
-                    .value_name("example.com:8080")
-                    .use_delimiter(false)
-                    .takes_value(true)
+
+        )
+        .subcommand(
+            edit_params(clap::SubCommand::with_name("edit"))
+                .about("Edits existing peer")
+                .arg(clap::Arg::with_name("name")
+                    .help("Name of a new peer")
+                    .required(true)
                 )
 
         )
@@ -186,6 +251,7 @@ fn main() {
 
         match args.subcommand() {
             ("add", Some(matches)) => { command_new_peer(net, matches) }
+            ("edit", Some(matches)) => { command_edit_peer(net, matches) }
             ("nix", Some(matches)) => { command_export(net, matches, NixConf::write_config) }
             ("conf", Some(matches)) => { command_export(net, matches, ConfFile::write_config) }
             ("qr", Some(matches)) => { command_export(net, matches, QRConfig::write_config) }
