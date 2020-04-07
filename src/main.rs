@@ -93,7 +93,7 @@ fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Arg
     let name: String = matches.value_of("name").unwrap().into();
 
     let mut peer = configs::PeerInfo {
-        name: Some(name),
+        name: name,
         endpoint: None,
         id: peer_id,
         private_key: wg_tools::gen_private_key(),

@@ -168,7 +168,7 @@ impl PeerFlag {
 // Information about a peer
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PeerInfo {
-    pub name: Option<String>,
+    pub name: String,
     pub private_key: String,
     pub id: u128,
     pub flags: Vec<PeerFlag>,
