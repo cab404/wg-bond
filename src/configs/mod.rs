@@ -7,6 +7,7 @@ use crate::wg_tools;
 use std::iter::*;
 use std::str::FromStr;
 use url::Host;
+use strum_macros::AsRefStr;
 
 pub mod conf;
 pub mod nix;
@@ -121,11 +122,17 @@ pub struct Peer {
 }
 
 // Describes emergent features of peers, not set by one flag.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, AsRefStr)]
 pub enum PeerFlag {
     Masquerade { interface: String },
     Gateway { ignore_local_networks: bool },
     Keepalive { keepalive: u16 }
+}
+
+#[test]
+fn test_flags_to_string() {
+    let a = PeerFlag::Masquerade { interface: "test".to_string() };
+    assert_eq!(a.as_ref(), "Masquerade")
 }
 
 impl PeerFlag {
