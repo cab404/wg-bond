@@ -247,6 +247,25 @@ impl WireguardNetworkInfo {
         }
         return None
     }
+
+    pub fn by_name_mut(&mut self, name: &String) -> Option<&mut PeerInfo> {
+        for i in 0..self.peers.len() {
+            if &self.peers[i].name == name {
+                return Some(&mut self.peers[i])
+            }
+        }
+        return None
+    }
+
+    pub fn by_name(&self, name: &String) -> Option<&PeerInfo> {
+        for peer in self.peers.iter() {
+            if &peer.name == name {
+                return Some(&peer)
+            }
+        }
+        return None
+    }
+
 }
 
 fn get_network_address_v4(net: &Ipv4Network, num: u32) -> Ipv4Addr {
