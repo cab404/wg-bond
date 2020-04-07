@@ -112,7 +112,7 @@ fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Arg
 
 fn command_edit_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::ArgMatches) -> Result<(), u8>  {
     // let peer_id = new_id(cfg);
-    let name: String = matches.value_of("name").unwrap().into();
+    let _name: String = matches.value_of("name").unwrap().into();
 
     // let mut peer = cfg.by_id(peer_id).expect("No peer with this id.");
 

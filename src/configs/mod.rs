@@ -1,4 +1,3 @@
-use std::fmt::Display;
 use ipnetwork::{IpNetwork, Ipv4Network, Ipv6Network};
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
