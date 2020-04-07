@@ -184,29 +184,23 @@ fn main() {
 
     fn commands(net: &mut configs::WireguardNetworkInfo, args: &clap::ArgMatches) -> Result<(), u8> {
 
-        if let Some(matches) = args.subcommand_matches("add") {
-            command_new_peer(net, matches)?;
+        match args.subcommand() {
+            ("add", Some(matches)) => { command_new_peer(net, matches) }
+            ("nix", Some(matches)) => { command_export(net, matches, NixConf::write_config) }
+            ("conf", Some(matches)) => { command_export(net, matches, ConfFile::write_config) }
+            ("qr", Some(matches)) => { command_export(net, matches, QRConfig::write_config) }
+            _ => Err(1)
         }
-
-        if let Some(matches) = args.subcommand_matches("nix") {
-            command_export(net, matches, NixConf::write_config)?;
-        }
-
-        if let Some(matches) = args.subcommand_matches("conf") {
-            command_export(net, matches, ConfFile::write_config)?;
-        }
-
-        if let Some(matches) = args.subcommand_matches("qr") {
-            command_export(net, matches, QRConfig::write_config)?;
-        }
-
-        Ok(())
 
     }
 
-    commands(&mut net, &args).unwrap();
+    match commands(&mut net, &args) {
+        Ok(()) => {
+            save_config(&net, cfg_file).unwrap();
+        }
+        Err(_) => {
 
-    save_config(&net, cfg_file).unwrap();
+        }
+    }
 
 }
-
