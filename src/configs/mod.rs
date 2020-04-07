@@ -239,15 +239,6 @@ impl WireguardNetworkInfo {
         interface
     }
 
-    pub fn by_id(&self, id: u128) -> Option<&PeerInfo> {
-        for peer in self.peers.iter() {
-            if peer.id == id {
-                return Some(peer)
-            }
-        }
-        return None
-    }
-
     pub fn by_name_mut(&mut self, name: &String) -> Option<&mut PeerInfo> {
         for i in 0..self.peers.len() {
             if &self.peers[i].name == name {
