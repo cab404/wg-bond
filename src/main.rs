@@ -4,6 +4,7 @@ extern crate serde;
 extern crate serde_json;
 extern crate qrcode;
 
+use clap::AppSettings::SubcommandRequired;
 use crate::configs::check_endpoint;
 use crate::configs::{ConfigType, ConfigWriter};
 use std::str::FromStr;
@@ -104,6 +105,7 @@ fn main() {
         .version("0.1")
         .about("Wireguard configuration manager")
         .author("Vladimir Serov <cab404>")
+        .setting(SubcommandRequired)
         .arg(
             clap::Arg::with_name("config")
                 .short("c")
