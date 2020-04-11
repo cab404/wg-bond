@@ -126,8 +126,41 @@ fn command_edit_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Ar
 
 fn command_export(cfg: &configs::WireguardNetworkInfo, matches: &clap::ArgMatches, exporter: ConfigWriter) -> Result<(), u8> {
     let name: String = matches.value_of("name").unwrap().into();
-    let peer = cfg.by_name(&name).expect("No peer with this name.");
-    println!("{}", exporter(&cfg, peer.id));
+    let peer = cfg.by_name(&name).expect("No peer found with this name.");
+
+    let newcfg = &mut cfg.clone();
+
+    fn peer_is_gateway(f: &configs::PeerInfo) -> bool {
+        f.flags.iter()
+            .position(|f| f.as_ref() == "Gateway")
+            .map(|_| true).unwrap_or(false)
+    }
+
+    if matches.is_present("tunnel") {
+        match matches.value_of("tunnel") {
+            Some("") => {
+                let gateway = cfg.peers
+                    .iter()
+                    .position(peer_is_gateway)
+                    .map(|i| &cfg.peers[i])
+                    .expect("No gateways found in your config.");
+                newcfg.peers = vec![ gateway.clone(), peer.clone() ];
+            }
+            Some(p) => {
+                let gateway = cfg
+                    .by_name(&p.into())
+                    .expect("No gateway found by given name");
+                if !peer_is_gateway(gateway) {
+                    panic!("Peer with this name is not a gateway!")
+                }
+                newcfg.peers = vec![ gateway.clone(), peer.clone() ];
+            }
+            None => {}
+        };
+    };
+
+
+    println!("{}", exporter(&newcfg, peer.id));
     Ok(())
 }
 
@@ -163,6 +196,13 @@ fn export_params<'a, 'b>(subcommand: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
         .arg(clap::Arg::with_name("name")
             .help("Name of a new peer")
             .required(true)
+        )
+        .arg(clap::Arg::with_name("tunnel")
+            .short("T")
+            .help("Whether to remove all peers from resulting config except a gateway")
+            .use_delimiter(false)
+            .takes_value(true)
+            .value_name("GATEWAY NAME")
         )
 }
 
