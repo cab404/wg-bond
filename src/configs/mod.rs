@@ -121,7 +121,7 @@ pub struct Peer {
 }
 
 // Describes emergent features of peers, not set by one flag.
-#[derive(Serialize, Deserialize, Debug, AsRefStr)]
+#[derive(Serialize, Deserialize, Debug, AsRefStr, Clone)]
 pub enum PeerFlag {
     Masquerade { interface: String },
     Gateway { ignore_local_networks: bool },
@@ -166,7 +166,7 @@ impl PeerFlag {
 }
 
 // Information about a peer
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PeerInfo {
     pub name: String,
     pub private_key: String,
@@ -205,7 +205,7 @@ impl PeerInfo {
 }
 
 // Overall network informatiom
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WireguardNetworkInfo {
     pub name: String,
     pub network: IpNetwork,
