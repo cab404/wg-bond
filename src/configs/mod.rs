@@ -217,7 +217,7 @@ impl WireguardNetworkInfo {
     pub fn map_to_peer(&self, info: &PeerInfo) -> Peer {
         let mut peer = info.derive_peer();
         peer.allowed_ips = vec![
-            IpNetwork::new(get_network_address(&self.network, info.id), self.network.prefix()).unwrap()
+            get_network_address_as_network(&self.network, info.id)
         ];
 
         for flag in &info.flags {
@@ -267,6 +267,14 @@ fn get_network_address_v4(net: &Ipv4Network, num: u32) -> Ipv4Addr {
 fn get_network_address_v6(net: &Ipv6Network, num: u128) -> Ipv6Addr {
     assert!(net.size() > num);
     Ipv6Addr::from(u128::from_be_bytes(net.ip().octets().clone()) | (num & (!0u128 >> net.prefix())))
+}
+
+
+pub fn get_network_address_as_network(net: &IpNetwork, num: u128) -> IpNetwork {
+    match get_network_address(&net, num) {
+        a@IpAddr::V4(_) => IpNetwork::new(a, 32).unwrap(),
+        a@IpAddr::V6(_) => IpNetwork::new(a, 128).unwrap(),
+    }
 }
 
 pub fn get_network_address(net: &IpNetwork, num: u128) -> IpAddr {
