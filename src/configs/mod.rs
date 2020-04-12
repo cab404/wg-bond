@@ -155,6 +155,8 @@ impl PeerFlag {
                     peer.allowed_ips.append(
                         &mut GLOBAL_NET.iter().map(|a| IpNetwork::from_str(a).unwrap()).collect()
                     )
+                } else {
+                    peer.allowed_ips.insert(0, IpNetwork::from_str("0.0.0.0/0").unwrap())
                 }
             }
             PeerFlag::Keepalive { keepalive } => {
