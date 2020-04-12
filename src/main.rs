@@ -83,6 +83,10 @@ fn parse_peer_edit_command(peer: &mut configs::PeerInfo, matches: &clap::ArgMatc
         peer.flags.insert(0, configs::PeerFlag::Gateway { ignore_local_networks: true })
     }
 
+    if let Some(keepalive) = matches.value_of("keepalive").map(|n| u16::from_str(n).unwrap()) {
+        peer.flags.insert(0, configs::PeerFlag::Keepalive { keepalive: keepalive })
+    }
+
     peer.flags.sort_by(|a, b| a.as_ref().cmp(b.as_ref()));
     peer.flags.dedup_by(|a, b| a.as_ref() == b.as_ref());
 
@@ -188,6 +192,20 @@ fn edit_params<'a, 'b>(subcommand: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
             .use_delimiter(false)
             .takes_value(true)
             .value_name("INTERFACE")
+        )
+        .arg(clap::Arg::with_name("keepalive")
+            .short("K")
+            .long("keepalive")
+            .help("Keepalive interval of a host")
+            .validator(|v|
+                match u16::from_str(v.as_str()) {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err("Not a number.".to_string()),
+                }
+            )
+            .use_delimiter(false)
+            .takes_value(true)
+            .value_name("SECONDS")
         )
 }
 
