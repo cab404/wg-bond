@@ -290,7 +290,7 @@ fn main() {
             ("nix", Some(matches)) => { command_export(net, matches, NixConf::write_config) }
             ("conf", Some(matches)) => { command_export(net, matches, ConfFile::write_config) }
             ("qr", Some(matches)) => { command_export(net, matches, QRConfig::write_config) }
-            _ => Err(1)
+            _ => Ok(())
         }
 
     }
