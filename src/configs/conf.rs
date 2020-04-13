@@ -69,7 +69,9 @@ impl ConfigType for ConfFile {
             let b_peer = net.map_to_peer(peer);
 
             built.cfg_param("PublicKey", &gen_public_key(&peer.private_key));
+            built.cfg_param_opt("PresharedKey", b_peer.preshared_key);
             built.cfg_param_opt("Endpoint", b_peer.endpoint);
+            built.cfg_param_opt("PersistentKeepalive", b_peer.persistent_keepalive);
 
             let ips = &b_peer.allowed_ips;
             if !ips.is_empty() {
