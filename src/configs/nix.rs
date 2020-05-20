@@ -45,7 +45,7 @@ impl ConfigType for NixConf {
     }
 
     // Addresses
-    built += format!("ips=[{}];", &interface.address.iter().map(wrap_string).collect::<Vec<String>>().join(" ")).as_str();
+    built += format!("address=[{}];", &interface.address.iter().map(wrap_string).collect::<Vec<String>>().join(" ")).as_str();
 
     built += set_assign("preUp", &interface.pre_up).as_str();
     built += set_assign("preDown", &interface.pre_down).as_str();
