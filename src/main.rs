@@ -117,6 +117,18 @@ fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Arg
     Ok(())
 }
 
+fn command_list_peers(cfg: &configs::WireguardNetworkInfo, matches: &clap::ArgMatches) -> Result<(), u8> {
+    println!("{peer_name:>15}   {peer_ip:20}   {endpoint:15}", peer_name="Name", peer_ip="IP", endpoint="Endpoint");
+    for peer in cfg.peers.iter() {
+        let wg_peer = cfg.map_to_interface(peer);
+        println!("{name:>15}   {ip:20}   {endpoint:15}",
+            name=peer.name,
+            ip=wg_peer.address.first().map(|a| a.to_string()).unwrap(), // if it doesn't unwrap, something is really bad on our side
+            endpoint=peer.endpoint.clone().unwrap_or("".into())
+        );
+    }
+    Ok(())
+}
 
 fn command_edit_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::ArgMatches) -> Result<(), u8>  {
     let name: String = matches.value_of("name").unwrap().into();
@@ -269,6 +281,10 @@ fn main() {
 
         )
         .subcommand(
+            clap::SubCommand::with_name("list")
+                .about("Lists all added peers")
+        )
+        .subcommand(
             edit_params(clap::SubCommand::with_name("edit"))
                 .about("Edits existing peer")
                 .arg(clap::Arg::with_name("name")
@@ -304,6 +320,7 @@ fn main() {
 
         match args.subcommand() {
             ("add", Some(matches)) => { command_new_peer(net, matches) }
+            ("list", Some(matches)) => { command_list_peers(net, matches) }
             ("edit", Some(matches)) => { command_edit_peer(net, matches) }
             ("nix", Some(matches)) => { command_export(net, matches, NixConf::write_config) }
             ("conf", Some(matches)) => { command_export(net, matches, ConfFile::write_config) }
