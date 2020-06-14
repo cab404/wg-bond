@@ -12,7 +12,7 @@ impl ConfigType for NixOpsConf {
 
     built += "{";
 
-    for peer in net.peers.iter() {
+    for peer in net.peers.iter().filter(|a| a.has_flag("NixOpsMachine")) {
       built += "\"";
       built += peer.name.as_str();
       built += "\".";

@@ -84,6 +84,10 @@ fn parse_peer_edit_command(peer: &mut configs::PeerInfo, matches: &clap::ArgMatc
         peer.flags.insert(0, configs::PeerFlag::Gateway { ignore_local_networks: true })
     }
 
+    if matches.is_present("nixops") {
+        peer.flags.insert(0, configs::PeerFlag::NixOpsMachine)
+    }
+
     if let Some(keepalive) = matches.value_of("keepalive").map(|n| u16::from_str(n).unwrap()) {
         peer.flags.insert(0, configs::PeerFlag::Keepalive { keepalive: keepalive })
     }
@@ -195,6 +199,13 @@ fn edit_params<'a, 'b>(subcommand: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
             .short("G")
             .long("gateway")
             .help("Whether this peer is a gateway. You may also need -M.")
+            .use_delimiter(false)
+            .takes_value(false)
+        )
+        .arg(clap::Arg::with_name("nixops")
+            .short("N")
+            .long("nixops")
+            .help("Whether this peer is a NixOps machine, and should be added to a NixOps export.")
             .use_delimiter(false)
             .takes_value(false)
         )
