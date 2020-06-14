@@ -13,6 +13,7 @@ use ipnetwork::{IpNetwork};
 use configs::nix::NixConf;
 use configs::qr::QRConfig;
 use configs::conf::ConfFile;
+use configs::nixops::NixOpsConf;
 
 use clap;
 
@@ -298,6 +299,9 @@ fn main() {
                 .about("Generates Nix configs")
         )
         .subcommand(
+            clap::SubCommand::with_name("nixops").about("Generates NixOps config for all peers")
+        )
+        .subcommand(
             export_params(clap::SubCommand::with_name("qr"))
                 .about("Generates QR code with config")
         )
@@ -325,6 +329,7 @@ fn main() {
             ("nix", Some(matches)) => { command_export(net, matches, NixConf::write_config) }
             ("conf", Some(matches)) => { command_export(net, matches, ConfFile::write_config) }
             ("qr", Some(matches)) => { command_export(net, matches, QRConfig::write_config) }
+            ("nixops", Some(_)) => { println!("{}", NixOpsConf::write_config(net, 0)); Ok(()) }
             _ => Ok(())
         }
 

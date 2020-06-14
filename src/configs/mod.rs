@@ -10,6 +10,7 @@ use strum_macros::AsRefStr;
 
 pub mod conf;
 pub mod nix;
+pub mod nixops;
 pub mod qr;
 
 const GLOBAL_NET: &[&str; 30] = &[
