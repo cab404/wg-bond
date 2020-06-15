@@ -141,35 +141,70 @@ impl PeerFlag {
     fn apply_to_interface(&self, network: &WireguardNetworkInfo, interface: &mut Interface) {
         match self {
             PeerFlag::Masquerade { interface: if_name } => {
-                let iptables_bring_up = format!("iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-A", &network.network, if_name); 
-                let iptables_bring_down = format!("iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-D", &network.network, if_name); 
 
-                interface.pre_up = Some(iptables_bring_up.to_string());
-                interface.pre_down = Some(iptables_bring_down.to_string());
+                interface.pre_up = network.networks
+                    .iter()
+                    .map(|f| match f {
+                        IpNetwork::V4(n) => {
+                            format!("iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-A", &n, if_name)
+                        }
+                        IpNetwork::V6(n) => {
+                            format!("ip6tables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-A", &n, if_name)
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(";")
+                    .into();
+
+                interface.pre_down = network.networks
+                    .iter()
+                    .map(|f| match f {
+                        IpNetwork::V4(n) => {
+                            format!("iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-D", &n, if_name)
+                        }
+                        IpNetwork::V6(n) => {
+                            format!("ip6tables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-D", &n, if_name)
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(";")
+                    .into();
+
             }
             _ => {}
         }
     }
 
-    fn apply_to_peer(&self, _network: &WireguardNetworkInfo, peer: &mut Peer) {
+    fn apply_to_peer(&self, network: &WireguardNetworkInfo, peer: &mut Peer) {
         match self {
             PeerFlag::Gateway { ignore_local_networks } => {
+                let has_ipv4 = network.networks.iter().any(|f| if let IpNetwork::V4(_) = f {true} else {false});
+                let has_ipv6 = network.networks.iter().any(|f| if let IpNetwork::V6(_) = f {true} else {false});
+
                 if *ignore_local_networks {
                     peer.allowed_ips.append(
                         &mut GLOBAL_NET.iter().map(|a| IpNetwork::from_str(a).unwrap()).collect()
                     )
                 } else {
-                    peer.allowed_ips.insert(0, IpNetwork::from_str("0.0.0.0/0").unwrap())
+                    if has_ipv4 {
+                        peer.allowed_ips.insert(0, IpNetwork::from_str("0.0.0.0/0").unwrap())
+                    }
+
+                    if has_ipv6 {
+                        peer.allowed_ips.insert(0, IpNetwork::from_str("0::/0").unwrap())
+                    }
                 }
             }
             PeerFlag::Central => {
-                peer.allowed_ips.insert(0, network.network)
+                for network in network.networks.iter().rev() {
+                    peer.allowed_ips.insert(0, *network)
+                }
             }
             PeerFlag::Keepalive { keepalive } => {
                 peer.persistent_keepalive = Some(*keepalive)
             }
             _ => {}
-        }    
+        }
     }
 }
 
@@ -221,7 +256,7 @@ impl PeerInfo {
 pub struct WireguardNetworkInfo {
     pub name: String,
     pub flags: Vec<PeerInfo>,
-    pub network: IpNetwork,
+    pub networks: Vec<IpNetwork>,
     pub peers: Vec<PeerInfo>
 }
 
@@ -235,9 +270,10 @@ impl WireguardNetworkInfo {
 
     pub fn map_to_peer(&self, info: &PeerInfo) -> Peer {
         let mut peer = info.derive_peer();
-        peer.allowed_ips = vec![
-            get_network_address_as_network(&self.network, info.id)
-        ];
+        peer.allowed_ips =
+            self.networks.iter()
+            .map(|f| get_network_address_as_network(f, info.id))
+            .collect::<Vec<_>>();
 
         for flag in &info.flags {
             flag.apply_to_peer(self, &mut peer)
@@ -248,9 +284,9 @@ impl WireguardNetworkInfo {
     pub fn map_to_interface(&self, info: &PeerInfo) -> Interface {
         let mut interface = info.derive_interface();
 
-        interface.address = vec![
-            get_network_address(&self.network, info.id)
-        ];
+        interface.address = self.networks.iter()
+            .map(|f| get_network_address(f, info.id))
+            .collect::<Vec<_>>();
 
         for flag in &info.flags {
             flag.apply_to_interface(self, &mut interface)

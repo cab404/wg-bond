@@ -1,6 +1,10 @@
 {
   "name": "ooof",
   "network": "10.0.0.0/24",
+  "networks": [
+    "10.0.0.0/24",
+    "fe80:c4b4::/48"
+  ],
   "peers": [
     {
       "name": "cab",
