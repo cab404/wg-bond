@@ -220,7 +220,7 @@ fn edit_params<'a, 'b>(subcommand: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
         .arg(clap::Arg::with_name("masquerade")
             .short("M")
             .long("masquerade")
-            .help("Whether to enable iptables masquerade on this peer. Useful with -G option.")
+            .help("Whether to enable iptables masquerade on this peer.")
             .use_delimiter(false)
             .takes_value(true)
             .value_name("INTERFACE")
