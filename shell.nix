@@ -6,5 +6,12 @@ let
   });
 in
 with pkgs; mkShell {
-  buildInputs = [ openssl pkgconfig nasm rustup ruststable cmake zlib ];
+  buildInputs = [
+    rustup ruststable
+    pre-commit
+  ];
+
+  shellHook = ''
+    pre-commit install
+  '';
 }
