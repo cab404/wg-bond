@@ -162,6 +162,9 @@ impl PeerFlag {
                     peer.allowed_ips.insert(0, IpNetwork::from_str("0.0.0.0/0").unwrap())
                 }
             }
+            PeerFlag::Central => {
+                peer.allowed_ips.insert(0, network.network)
+            }
             PeerFlag::Keepalive { keepalive } => {
                 peer.persistent_keepalive = Some(*keepalive)
             }
