@@ -128,6 +128,7 @@ pub enum PeerFlag {
     Gateway { ignore_local_networks: bool },
     Keepalive { keepalive: u16 },
     NixOpsMachine,
+    Central,
 }
 
 #[test]
