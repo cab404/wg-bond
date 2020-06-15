@@ -65,6 +65,7 @@ fn command_init_config(matches: &clap::ArgMatches) -> configs::WireguardNetworkI
     configs::WireguardNetworkInfo {
         name: name.to_string(),
         network: IpNetwork::from_str(net).unwrap(),
+        flags: vec![],
         peers: vec![]
     }
 
