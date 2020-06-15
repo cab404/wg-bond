@@ -64,7 +64,8 @@ fn command_init_config(matches: &clap::ArgMatches) -> configs::WireguardNetworkI
 
     configs::WireguardNetworkInfo {
         name: name.to_string(),
-        network: IpNetwork::from_str(net).unwrap(),
+        networks: vec![IpNetwork::from_str(net).unwrap()],
+        flags: vec![],
         peers: vec![]
     }
 
@@ -78,6 +79,10 @@ fn parse_peer_edit_command(peer: &mut configs::PeerInfo, matches: &clap::ArgMatc
 
     if let Some(interface) = matches.value_of("masquerade") {
         peer.flags.insert(0, configs::PeerFlag::Masquerade { interface: interface.into() })
+    }
+
+    if matches.is_present("center") {
+        peer.flags.insert(0, configs::PeerFlag::Center)
     }
 
     if matches.is_present("gateway") {
@@ -122,13 +127,15 @@ fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Arg
     Ok(())
 }
 
-fn command_list_peers(cfg: &configs::WireguardNetworkInfo, matches: &clap::ArgMatches) -> Result<(), u8> {
-    println!("{peer_name:>15}   {peer_ip:20}   {endpoint:15}", peer_name="Name", peer_ip="IP", endpoint="Endpoint");
+fn command_list_peers(cfg: &configs::WireguardNetworkInfo, _: &clap::ArgMatches) -> Result<(), u8> {
+
+    // TODO: replace with some table lib
+    println!("{peer_name:>12}   {peer_ip:30}   {endpoint:15}", peer_name="Name", peer_ip="IP", endpoint="Endpoint");
     for peer in cfg.peers.iter() {
         let wg_peer = cfg.map_to_interface(peer);
-        println!("{name:>15}   {ip:20}   {endpoint:15}",
+        println!("{name:>12}   {ip:30}   {endpoint:15}",
             name=peer.name,
-            ip=wg_peer.address.first().map(|a| a.to_string()).unwrap(), // if it doesn't unwrap, something is really bad on our side
+            ip=wg_peer.address.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", "), // if it doesn't unwrap, something is really bad on our side
             endpoint=peer.endpoint.clone().unwrap_or("".into())
         );
     }
@@ -206,6 +213,13 @@ fn edit_params<'a, 'b>(subcommand: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
             .short("N")
             .long("nixops")
             .help("Whether this peer is a NixOps machine, and should be added to a NixOps export.")
+            .use_delimiter(false)
+            .takes_value(false)
+        )
+        .arg(clap::Arg::with_name("center")
+            .short("C")
+            .long("center")
+            .help("Whether this peer is to be used as connection point for other peers.")
             .use_delimiter(false)
             .takes_value(false)
         )

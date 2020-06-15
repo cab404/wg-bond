@@ -128,6 +128,7 @@ pub enum PeerFlag {
     Gateway { ignore_local_networks: bool },
     Keepalive { keepalive: u16 },
     NixOpsMachine,
+    Center,
 }
 
 #[test]
@@ -140,32 +141,70 @@ impl PeerFlag {
     fn apply_to_interface(&self, network: &WireguardNetworkInfo, interface: &mut Interface) {
         match self {
             PeerFlag::Masquerade { interface: if_name } => {
-                let iptables_bring_up = format!("iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-A", &network.network, if_name); 
-                let iptables_bring_down = format!("iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-D", &network.network, if_name); 
 
-                interface.pre_up = Some(iptables_bring_up.to_string());
-                interface.pre_down = Some(iptables_bring_down.to_string());
+                interface.pre_up = network.networks
+                    .iter()
+                    .map(|f| match f {
+                        IpNetwork::V4(n) => {
+                            format!("iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-A", &n, if_name)
+                        }
+                        IpNetwork::V6(n) => {
+                            format!("ip6tables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-A", &n, if_name)
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(";")
+                    .into();
+
+                interface.pre_down = network.networks
+                    .iter()
+                    .map(|f| match f {
+                        IpNetwork::V4(n) => {
+                            format!("iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-D", &n, if_name)
+                        }
+                        IpNetwork::V6(n) => {
+                            format!("ip6tables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-D", &n, if_name)
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(";")
+                    .into();
+
             }
             _ => {}
         }
     }
 
-    fn apply_to_peer(&self, _network: &WireguardNetworkInfo, peer: &mut Peer) {
+    fn apply_to_peer(&self, network: &WireguardNetworkInfo, peer: &mut Peer) {
         match self {
             PeerFlag::Gateway { ignore_local_networks } => {
+                let has_ipv4 = network.networks.iter().any(|f| if let IpNetwork::V4(_) = f {true} else {false});
+                let has_ipv6 = network.networks.iter().any(|f| if let IpNetwork::V6(_) = f {true} else {false});
+
                 if *ignore_local_networks {
                     peer.allowed_ips.append(
                         &mut GLOBAL_NET.iter().map(|a| IpNetwork::from_str(a).unwrap()).collect()
                     )
                 } else {
-                    peer.allowed_ips.insert(0, IpNetwork::from_str("0.0.0.0/0").unwrap())
+                    if has_ipv4 {
+                        peer.allowed_ips.insert(0, IpNetwork::from_str("0.0.0.0/0").unwrap())
+                    }
+
+                    if has_ipv6 {
+                        peer.allowed_ips.insert(0, IpNetwork::from_str("0::/0").unwrap())
+                    }
+                }
+            }
+            PeerFlag::Center => {
+                for network in network.networks.iter().rev() {
+                    peer.allowed_ips.insert(0, *network)
                 }
             }
             PeerFlag::Keepalive { keepalive } => {
                 peer.persistent_keepalive = Some(*keepalive)
             }
             _ => {}
-        }    
+        }
     }
 }
 
@@ -216,17 +255,25 @@ impl PeerInfo {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WireguardNetworkInfo {
     pub name: String,
-    pub network: IpNetwork,
+    pub flags: Vec<NetworkFlag>,
+    pub networks: Vec<IpNetwork>,
     pub peers: Vec<PeerInfo>
+}
+
+#[derive(Serialize, Deserialize, Debug, AsRefStr, Clone)]
+pub enum NetworkFlag {
+    Centralized,
+    // TODO: Add symmetric keys overlay
 }
 
 impl WireguardNetworkInfo {
 
     pub fn map_to_peer(&self, info: &PeerInfo) -> Peer {
         let mut peer = info.derive_peer();
-        peer.allowed_ips = vec![
-            get_network_address_as_network(&self.network, info.id)
-        ];
+        peer.allowed_ips =
+            self.networks.iter()
+            .map(|f| get_network_address_as_network(f, info.id))
+            .collect::<Vec<_>>();
 
         for flag in &info.flags {
             flag.apply_to_peer(self, &mut peer)
@@ -237,9 +284,9 @@ impl WireguardNetworkInfo {
     pub fn map_to_interface(&self, info: &PeerInfo) -> Interface {
         let mut interface = info.derive_interface();
 
-        interface.address = vec![
-            get_network_address(&self.network, info.id)
-        ];
+        interface.address = self.networks.iter()
+            .map(|f| get_network_address(f, info.id))
+            .collect::<Vec<_>>();
 
         for flag in &info.flags {
             flag.apply_to_interface(self, &mut interface)
@@ -247,22 +294,40 @@ impl WireguardNetworkInfo {
         interface
     }
 
-    pub fn by_name_mut(&mut self, name: &String) -> Option<&mut PeerInfo> {
-        for i in 0..self.peers.len() {
-            if &self.peers[i].name == name {
-                return Some(&mut self.peers[i])
+    pub fn peer_list(&self, info: &PeerInfo) -> Vec<&PeerInfo> {
+        let others = ||self.peers
+            .iter()
+            .filter(|peer| peer.id != info.id)
+            .collect::<Vec<_>>();
+
+        if self.has_flag("Centralized") {
+            if info.has_flag("Center") {
+                others()
+            } else {
+                self.peers
+                    .iter()
+                    .filter(|peer| peer.has_flag("Center"))
+                    .collect::<Vec<_>>()
             }
+        } else {
+            others()
         }
-        return None
+    }
+
+    pub fn by_name_mut(&mut self, name: &String) -> Option<&mut PeerInfo> {
+        self.peers.iter_mut().filter(|f| f.name == *name).next()
     }
 
     pub fn by_name(&self, name: &String) -> Option<&PeerInfo> {
-        for peer in self.peers.iter() {
-            if &peer.name == name {
-                return Some(&peer)
-            }
-        }
-        return None
+        self.peers.iter().filter(|f| f.name == *name).next()
+    }
+
+    pub fn by_id(&self, id: u128) -> Option<&PeerInfo> {
+        self.peers.iter().filter(|f| f.id == id).next()
+    }
+
+    pub fn has_flag(&self, flag_name: &str) -> bool {
+        self.flags.iter().any(|f| f.as_ref() == flag_name)
     }
 
 }

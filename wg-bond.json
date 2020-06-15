@@ -1,12 +1,19 @@
 {
   "name": "ooof",
   "network": "10.0.0.0/24",
+  "networks": [
+    "10.0.0.0/24",
+    "fe80:c4b4::/48"
+  ],
   "peers": [
     {
       "name": "cab",
       "private_key": "sNOX09z3U0RQIe8v3uxtcwwBlEx4e8ZgMkTmBC3MDnw=",
       "id": 1,
-      "flags": [],
+      "flags": [
+        "Central",
+        "NixOpsMachine"
+      ],
       "endpoint": null
     },
     {

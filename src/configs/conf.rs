@@ -33,19 +33,9 @@ impl ConfigType for ConfFile {
 
     fn write_config(net: &WireguardNetworkInfo, id: u128) -> String {
 
-        let my_peer = net
-          .peers
-            .iter()
-            .filter(|peer| peer.id == id)
-            .next()
-            .unwrap();
-        let other_peers: Vec<&PeerInfo> = net
-            .peers
-            .iter()
-            .filter(|peer| peer.id != id)
-            .collect();
+        let my_peer = net.by_id(id).unwrap();
+        let other_peers: Vec<&PeerInfo> = net.peer_list(my_peer);
         let interface = net.map_to_interface(my_peer);
-
 
         let mut built = String::new();
         built.add_assign("[Interface]\n");
