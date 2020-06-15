@@ -25,11 +25,22 @@ impl ConfigType for NixConf {
     }
 
 
+    fn set_assign_raw(key: &str, value: &Option<impl core::fmt::Display>) -> String {
+      match value {
+        Some(val) => {
+          format!("{}={};", key, val)
+        }
+        _ => {
+          "".into()
+        }
+      }
+    }
+
     let mut built = String::new();
     built += format!("networking.wg-quick.interfaces.\"{}\"={{", &net.name).as_str();
     built += format!("privateKey=\"{}\";", &my_peer.private_key).as_str();
 
-    built += set_assign("listenPort", &my_peer.endpoint.as_ref().map(get_port)).as_str();
+    built += set_assign_raw("listenPort", &my_peer.endpoint.as_ref().map(get_port)).as_str();
 
     fn wrap_string<T>(thing: &T) -> String where T : core::fmt::Display {
       format!("\"{}\"", thing)
@@ -48,8 +59,8 @@ impl ConfigType for NixConf {
       let mut built = String::new();
       built += "{";
       built += set_assign("publicKey", &Some(&peer.public_key)).as_str();
-      built += format!("allowedIPs=[{}];", peer.allowed_ips.iter().map(wrap_string).collect::<Vec<String>>().join(" ")).as_str();     
-      built += set_assign("persistentKeepalive", &peer.persistent_keepalive).as_str();
+      built += format!("allowedIPs=[{}];", peer.allowed_ips.iter().map(wrap_string).collect::<Vec<String>>().join(" ")).as_str();
+      built += set_assign_raw("persistentKeepalive", &peer.persistent_keepalive).as_str();
       built += set_assign("presharedKey", &peer.preshared_key).as_str();
       built += set_assign("endpoint", &peer.endpoint).as_str();
       built += "}";
