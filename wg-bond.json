@@ -1,6 +1,8 @@
 {
   "name": "ooof",
-  "network": "10.0.0.0/24",
+  "flags": [
+    "Centralized"
+  ],
   "networks": [
     "10.0.0.0/24",
     "fe80:c4b4::/48"
@@ -11,7 +13,7 @@
       "private_key": "sNOX09z3U0RQIe8v3uxtcwwBlEx4e8ZgMkTmBC3MDnw=",
       "id": 1,
       "flags": [
-        "Central",
+        "Center",
         "NixOpsMachine"
       ],
       "endpoint": null
@@ -27,7 +29,14 @@
       "name": "test",
       "private_key": "0AoQ4wPEDtGipzaRk194Ht/Kyp7Yxge8gv4Mk/z6zmE=",
       "id": 3,
-      "flags": [],
+      "flags": [
+        {
+          "Keepalive": {
+            "keepalive": 12
+          }
+        },
+        "NixOpsMachine"
+      ],
       "endpoint": null
     },
     {
@@ -41,14 +50,18 @@
       "name": "test",
       "private_key": "2P7eLX9P+OksN6HY8FdlyQ99tta3+KpqU5NV47YUIXY=",
       "id": 5,
-      "flags": [],
+      "flags": [
+        "NixOpsMachine"
+      ],
       "endpoint": null
     },
     {
       "name": "test",
       "private_key": "uK0ilLxcrwulHIwb+XWaqvWS+kDX0NVFM57uLMBJ73A=",
       "id": 6,
-      "flags": [],
+      "flags": [
+        "NixOpsMachine"
+      ],
       "endpoint": "2.2.2.2:4444"
     },
     {
