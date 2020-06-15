@@ -128,7 +128,7 @@ pub enum PeerFlag {
     Gateway { ignore_local_networks: bool },
     Keepalive { keepalive: u16 },
     NixOpsMachine,
-    Central,
+    Center,
 }
 
 #[test]
@@ -195,7 +195,7 @@ impl PeerFlag {
                     }
                 }
             }
-            PeerFlag::Central => {
+            PeerFlag::Center => {
                 for network in network.networks.iter().rev() {
                     peer.allowed_ips.insert(0, *network)
                 }
@@ -301,12 +301,12 @@ impl WireguardNetworkInfo {
             .collect::<Vec<_>>();
 
         if self.has_flag("Centralized") {
-            if info.has_flag("Central") {
+            if info.has_flag("Center") {
                 others()
             } else {
                 self.peers
                     .iter()
-                    .filter(|peer| peer.has_flag("Central"))
+                    .filter(|peer| peer.has_flag("Center"))
                     .collect::<Vec<_>>()
             }
         } else {
