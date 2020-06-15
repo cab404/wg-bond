@@ -10,6 +10,7 @@ use strum_macros::AsRefStr;
 
 pub mod conf;
 pub mod nix;
+pub mod nixops;
 pub mod qr;
 
 const GLOBAL_NET: &[&str; 30] = &[
@@ -125,7 +126,8 @@ pub struct Peer {
 pub enum PeerFlag {
     Masquerade { interface: String },
     Gateway { ignore_local_networks: bool },
-    Keepalive { keepalive: u16 }
+    Keepalive { keepalive: u16 },
+    NixOpsMachine,
 }
 
 #[test]
@@ -178,6 +180,10 @@ pub struct PeerInfo {
 }
 
 impl PeerInfo {
+
+    pub fn has_flag(&self, flag_name: &str) -> bool {
+        self.flags.iter().any(|f| f.as_ref() == flag_name)
+    }
 
     pub fn derive_interface(&self) -> Interface {
         Interface {
