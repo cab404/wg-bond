@@ -81,6 +81,10 @@ fn parse_peer_edit_command(peer: &mut configs::PeerInfo, matches: &clap::ArgMatc
         peer.flags.insert(0, configs::PeerFlag::Masquerade { interface: interface.into() })
     }
 
+    if matches.is_present("center") {
+        peer.flags.insert(0, configs::PeerFlag::Center)
+    }
+
     if matches.is_present("gateway") {
         peer.flags.insert(0, configs::PeerFlag::Gateway { ignore_local_networks: true })
     }
@@ -209,6 +213,13 @@ fn edit_params<'a, 'b>(subcommand: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
             .short("N")
             .long("nixops")
             .help("Whether this peer is a NixOps machine, and should be added to a NixOps export.")
+            .use_delimiter(false)
+            .takes_value(false)
+        )
+        .arg(clap::Arg::with_name("center")
+            .short("C")
+            .long("center")
+            .help("Whether this peer is to be used as connection point for other peers.")
             .use_delimiter(false)
             .takes_value(false)
         )
