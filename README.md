@@ -5,50 +5,32 @@ Easy Wireguard configurator.
 
 ![preview](./peek.gif)
 
+I didn't write any documentation yet, but `--help` option is available.
 
-### Setup
+## NixOps example
 
-#### Initialize a config:
+```bash
 
-```shell script
-$ wgbond init wgvpn
+# Initialize a config:
+wgbond init wgvpn
+
+# Add server:
+wgbond add server \
+--endpoint example.com:42000 \
+--nixops \          # Include into NixOps export
+--center \          # Make clients use this peer as gateway
+--gateway \         # And get internet through it
+--keepalive 30 \    # Also send it keepalives every 30 seconds
+--masquerade eth0   # And forward via eth0
+
+wgbond add phone
+
+# Generate and push config to your NixOps cluster
+wgbond nixops > wg.nix
+nixops modify wg.nix machines.nix
+nixops deploy
+
+# Generate config for your phone
+wgbond qr phone
+
 ```
-
-It will create wg-bond.json in a current directory.
-
-
-#### Add peers:
-
-```shell script
-$ wgbond add testpeer --endpoint=example.com:42000
-```
-
-#### Generate configs:
-
-```shell script
-$ wgbond conf 1 # Referencing hosts by name is not here yet
-```
-
-#### Set your wireguard server ip address:
-
-```shell script
-$ wgbond edit [ID] --endpoint=[address]
-```
-
-
-# All of the following is a draft, and is not actual functionality at the moment!
-
-##### Bind another computer securely over HTTP
-
-IANA is evil, HTTPS is broken, yada yada.
-
-On a server:
-
-```shell script
-$ wgbond onetime
-Starting server...
-curl http://[address]/SoM3t0K3n/interface-name.conf | unzip -P 'A/s3kr3t/C0D3'
-```
-
-Run this command, and you'll get a configuration.
-You also can get a Nix configuration by substituting `.conf` by `.nix` in a URL.
