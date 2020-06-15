@@ -255,13 +255,13 @@ impl PeerInfo {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WireguardNetworkInfo {
     pub name: String,
-    pub flags: Vec<PeerInfo>,
+    pub flags: Vec<NetworkFlag>,
     pub networks: Vec<IpNetwork>,
     pub peers: Vec<PeerInfo>
 }
 
 #[derive(Serialize, Deserialize, Debug, AsRefStr, Clone)]
-enum NetworkFlag {
+pub enum NetworkFlag {
     Centralized,
     // TODO: Add symmetric keys overlay
 }

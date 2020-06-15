@@ -10,7 +10,10 @@
       "name": "cab",
       "private_key": "sNOX09z3U0RQIe8v3uxtcwwBlEx4e8ZgMkTmBC3MDnw=",
       "id": 1,
-      "flags": [],
+      "flags": [
+        "Central",
+        "NixOpsMachine"
+      ],
       "endpoint": null
     },
     {
