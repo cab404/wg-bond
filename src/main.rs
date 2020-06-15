@@ -158,19 +158,13 @@ fn command_export(cfg: &configs::WireguardNetworkInfo, matches: &clap::ArgMatche
 
     let newcfg = &mut cfg.clone();
 
-    fn peer_is_gateway(f: &configs::PeerInfo) -> bool {
-        f.flags.iter()
-            .position(|f| f.as_ref() == "Gateway")
-            .map(|_| true).unwrap_or(false)
-    }
-
     if matches.is_present("tunnel") {
         match matches.value_of("tunnel") {
             Some("") => {
                 let gateway = cfg.peers
                     .iter()
-                    .position(peer_is_gateway)
-                    .map(|i| &cfg.peers[i])
+                    .filter(|f| f.has_flag("Gateway"))
+                    .next()
                     .expect("No gateways found in your config.");
                 newcfg.peers = vec![ gateway.clone(), peer.clone() ];
             }
