@@ -294,22 +294,40 @@ impl WireguardNetworkInfo {
         interface
     }
 
-    pub fn by_name_mut(&mut self, name: &String) -> Option<&mut PeerInfo> {
-        for i in 0..self.peers.len() {
-            if &self.peers[i].name == name {
-                return Some(&mut self.peers[i])
+    pub fn peer_list(&self, info: &PeerInfo) -> Vec<&PeerInfo> {
+        let others = ||self.peers
+            .iter()
+            .filter(|peer| peer.id != info.id)
+            .collect::<Vec<_>>();
+
+        if self.has_flag("Centralized") {
+            if info.has_flag("Central") {
+                others()
+            } else {
+                self.peers
+                    .iter()
+                    .filter(|peer| peer.has_flag("Central"))
+                    .collect::<Vec<_>>()
             }
+        } else {
+            others()
         }
-        return None
+    }
+
+    pub fn by_name_mut(&mut self, name: &String) -> Option<&mut PeerInfo> {
+        self.peers.iter_mut().filter(|f| f.name == *name).next()
     }
 
     pub fn by_name(&self, name: &String) -> Option<&PeerInfo> {
-        for peer in self.peers.iter() {
-            if &peer.name == name {
-                return Some(&peer)
-            }
-        }
-        return None
+        self.peers.iter().filter(|f| f.name == *name).next()
+    }
+
+    pub fn by_id(&self, id: u128) -> Option<&PeerInfo> {
+        self.peers.iter().filter(|f| f.id == id).next()
+    }
+
+    pub fn has_flag(&self, flag_name: &str) -> bool {
+        self.flags.iter().any(|f| f.as_ref() == flag_name)
     }
 
 }
