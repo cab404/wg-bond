@@ -1,12 +1,12 @@
+use crate::wg_tools;
 use ipnetwork::{IpNetwork, Ipv4Network, Ipv6Network};
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use crate::wg_tools;
 use std::iter::*;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
-use url::Host;
 use strum_macros::AsRefStr;
+use url::Host;
 
 pub mod conf;
 pub mod nix;
@@ -50,41 +50,50 @@ const GLOBAL_NET: &[&str; 30] = &[
 /// ```
 /// assert_eq!(parse_url("test:8080"), Some((Host::Domain("test".to_string()), 8080)));
 /// ```
-fn split_endpoint(address: &String) -> Option<(Host, u16)> {
-    let split = address.rsplitn(2, ':').collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>();
+fn split_endpoint(address: &str) -> Option<(Host, u16)> {
+    let split = address
+        .rsplitn(2, ':')
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>();
     if split.len() == 2 {
         if let (Some(host), Some(port)) = (
-                Host::parse(split[0]).map(Some).unwrap_or(None), 
-                u16::from_str(split[1]).map(Some).unwrap_or(None)
-            ) {
-                Some((host, port))
-            } else {
-                None
-            }
-
+            Host::parse(split[0]).map(Some).unwrap_or(None),
+            u16::from_str(split[1]).map(Some).unwrap_or(None),
+        ) {
+            Some((host, port))
+        } else {
+            None
+        }
     } else {
         None
     }
 }
 #[test]
 fn test_parse_endpoint() {
-    assert_eq!(split_endpoint(&"test:8080".into()), Some((Host::Domain("test".into()), 8080)));
-    assert_eq!(split_endpoint(&"@:8080".into()), None);
+    assert_eq!(
+        split_endpoint("test:8080"),
+        Some((Host::Domain("test".into()), 8080))
+    );
+    assert_eq!(split_endpoint("@:8080"), None);
 }
 
-pub fn get_port(address: &String) -> u16 {
-    split_endpoint(address).expect("Failed to parse endpoint!").1
+pub fn get_port(address: &str) -> u16 {
+    split_endpoint(address)
+        .expect("Failed to parse endpoint!")
+        .1
 }
 
 #[test]
 pub fn test_get_port() {
-    assert_eq!(get_port(&"test:8080".into()), 8080);
+    assert_eq!(get_port("test:8080"), 8080);
 }
 
 /// Checks whether given string is a valid endpoint
-pub fn check_endpoint(address: &String) -> Option<String> {
-    if let Some(_) = split_endpoint(address) {
-        Some(address.clone())
+pub fn check_endpoint(address: &str) -> Option<&str> {
+    if split_endpoint(address).is_some() {
+        Some(address)
     } else {
         None
     }
@@ -92,8 +101,11 @@ pub fn check_endpoint(address: &String) -> Option<String> {
 
 #[test]
 pub fn test_check_endpoint() {
-    assert_eq!(check_endpoint(&"test:8080".into()), Some("test:8080".into()));
-    assert_eq!(check_endpoint(&"test::".into()), None);
+    assert_eq!(
+        check_endpoint(&"test:8080"),
+        Some("test:8080")
+    );
+    assert_eq!(check_endpoint("test::"), None);
 }
 
 // Mapping of wg-quick interface.
@@ -133,65 +145,87 @@ pub enum PeerFlag {
 
 #[test]
 fn test_flags_to_string() {
-    let a = PeerFlag::Masquerade { interface: "test".to_string() };
+    let a = PeerFlag::Masquerade {
+        interface: "test".to_string(),
+    };
     assert_eq!(a.as_ref(), "Masquerade")
 }
 
 impl PeerFlag {
     fn apply_to_interface(&self, network: &WireguardNetworkInfo, interface: &mut Interface) {
-        match self {
-            PeerFlag::Masquerade { interface: if_name } => {
+        if let PeerFlag::Masquerade { interface: if_name } = self {
+            interface.pre_up = network
+                .networks
+                .iter()
+                .map(|f| match f {
+                    IpNetwork::V4(n) => format!(
+                        "iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}",
+                        "-A", &n, if_name
+                    ),
+                    IpNetwork::V6(n) => format!(
+                        "ip6tables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}",
+                        "-A", &n, if_name
+                    ),
+                })
+                .collect::<Vec<_>>()
+                .join(";")
+                .into();
 
-                interface.pre_up = network.networks
-                    .iter()
-                    .map(|f| match f {
-                        IpNetwork::V4(n) => {
-                            format!("iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-A", &n, if_name)
-                        }
-                        IpNetwork::V6(n) => {
-                            format!("ip6tables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-A", &n, if_name)
-                        }
-                    })
-                    .collect::<Vec<_>>()
-                    .join(";")
-                    .into();
-
-                interface.pre_down = network.networks
-                    .iter()
-                    .map(|f| match f {
-                        IpNetwork::V4(n) => {
-                            format!("iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-D", &n, if_name)
-                        }
-                        IpNetwork::V6(n) => {
-                            format!("ip6tables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}", "-D", &n, if_name)
-                        }
-                    })
-                    .collect::<Vec<_>>()
-                    .join(";")
-                    .into();
-
-            }
-            _ => {}
+            interface.pre_down = network
+                .networks
+                .iter()
+                .map(|f| match f {
+                    IpNetwork::V4(n) => format!(
+                        "iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}",
+                        "-D", &n, if_name
+                    ),
+                    IpNetwork::V6(n) => format!(
+                        "ip6tables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}",
+                        "-D", &n, if_name
+                    ),
+                })
+                .collect::<Vec<_>>()
+                .join(";")
+                .into();
         }
     }
 
     fn apply_to_peer(&self, network: &WireguardNetworkInfo, peer: &mut Peer) {
         match self {
-            PeerFlag::Gateway { ignore_local_networks } => {
-                let has_ipv4 = network.networks.iter().any(|f| if let IpNetwork::V4(_) = f {true} else {false});
-                let has_ipv6 = network.networks.iter().any(|f| if let IpNetwork::V6(_) = f {true} else {false});
+            PeerFlag::Gateway {
+                ignore_local_networks,
+            } => {
+                let has_ipv4 = network.networks.iter().any(|f| {
+                    if let IpNetwork::V4(_) = f {
+                        true
+                    } else {
+                        false
+                    }
+                });
+                let has_ipv6 = network.networks.iter().any(|f| {
+                    if let IpNetwork::V6(_) = f {
+                        true
+                    } else {
+                        false
+                    }
+                });
 
                 if *ignore_local_networks {
                     peer.allowed_ips.append(
-                        &mut GLOBAL_NET.iter().map(|a| IpNetwork::from_str(a).unwrap()).collect()
+                        &mut GLOBAL_NET
+                            .iter()
+                            .map(|a| IpNetwork::from_str(a).unwrap())
+                            .collect(),
                     )
                 } else {
                     if has_ipv4 {
-                        peer.allowed_ips.insert(0, IpNetwork::from_str("0.0.0.0/0").unwrap())
+                        peer.allowed_ips
+                            .insert(0, IpNetwork::from_str("0.0.0.0/0").unwrap())
                     }
 
                     if has_ipv6 {
-                        peer.allowed_ips.insert(0, IpNetwork::from_str("0::/0").unwrap())
+                        peer.allowed_ips
+                            .insert(0, IpNetwork::from_str("0::/0").unwrap())
                     }
                 }
             }
@@ -200,9 +234,7 @@ impl PeerFlag {
                     peer.allowed_ips.insert(0, *network)
                 }
             }
-            PeerFlag::Keepalive { keepalive } => {
-                peer.persistent_keepalive = Some(*keepalive)
-            }
+            PeerFlag::Keepalive { keepalive } => peer.persistent_keepalive = Some(*keepalive),
             _ => {}
         }
     }
@@ -215,11 +247,10 @@ pub struct PeerInfo {
     pub private_key: String,
     pub id: u128,
     pub flags: Vec<PeerFlag>,
-    pub endpoint: Option<String>
+    pub endpoint: Option<String>,
 }
 
 impl PeerInfo {
-
     pub fn has_flag(&self, flag_name: &str) -> bool {
         self.flags.iter().any(|f| f.as_ref() == flag_name)
     }
@@ -228,14 +259,14 @@ impl PeerInfo {
         Interface {
             address: vec![],
             private_key: self.private_key.clone(),
-            port: self.endpoint.as_ref().map(get_port),
+            port: self.endpoint.as_ref().map(String::as_str).map(get_port),
             dns: vec![],
             fw_mark: None,
             table: None,
             pre_up: None,
             post_up: None,
             pre_down: None,
-            post_down: None
+            post_down: None,
         }
     }
 
@@ -245,10 +276,9 @@ impl PeerInfo {
             allowed_ips: vec![],
             endpoint: self.endpoint.clone(),
             persistent_keepalive: None,
-            preshared_key: None
+            preshared_key: None,
         }
     }
-
 }
 
 // Overall network informatiom
@@ -257,7 +287,7 @@ pub struct WireguardNetworkInfo {
     pub name: String,
     pub flags: Vec<NetworkFlag>,
     pub networks: Vec<IpNetwork>,
-    pub peers: Vec<PeerInfo>
+    pub peers: Vec<PeerInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, AsRefStr, Clone)]
@@ -267,11 +297,11 @@ pub enum NetworkFlag {
 }
 
 impl WireguardNetworkInfo {
-
     pub fn map_to_peer(&self, info: &PeerInfo) -> Peer {
         let mut peer = info.derive_peer();
-        peer.allowed_ips =
-            self.networks.iter()
+        peer.allowed_ips = self
+            .networks
+            .iter()
             .map(|f| get_network_address_as_network(f, info.id))
             .collect::<Vec<_>>();
 
@@ -284,7 +314,9 @@ impl WireguardNetworkInfo {
     pub fn map_to_interface(&self, info: &PeerInfo) -> Interface {
         let mut interface = info.derive_interface();
 
-        interface.address = self.networks.iter()
+        interface.address = self
+            .networks
+            .iter()
             .map(|f| get_network_address(f, info.id))
             .collect::<Vec<_>>();
 
@@ -295,10 +327,12 @@ impl WireguardNetworkInfo {
     }
 
     pub fn peer_list(&self, info: &PeerInfo) -> Vec<&PeerInfo> {
-        let others = ||self.peers
-            .iter()
-            .filter(|peer| peer.id != info.id)
-            .collect::<Vec<_>>();
+        let others = || {
+            self.peers
+                .iter()
+                .filter(|peer| peer.id != info.id)
+                .collect::<Vec<_>>()
+        };
 
         if self.has_flag("Centralized") {
             if info.has_flag("Center") {
@@ -314,39 +348,39 @@ impl WireguardNetworkInfo {
         }
     }
 
-    pub fn by_name_mut(&mut self, name: &String) -> Option<&mut PeerInfo> {
-        self.peers.iter_mut().filter(|f| f.name == *name).next()
+    pub fn by_name_mut(&mut self, name: &str) -> Option<&mut PeerInfo> {
+        self.peers.iter_mut().find(|f| f.name == *name)
     }
 
-    pub fn by_name(&self, name: &String) -> Option<&PeerInfo> {
-        self.peers.iter().filter(|f| f.name == *name).next()
+    pub fn by_name(&self, name: &str) -> Option<&PeerInfo> {
+        self.peers.iter().find(|f| f.name == *name)
     }
 
     pub fn by_id(&self, id: u128) -> Option<&PeerInfo> {
-        self.peers.iter().filter(|f| f.id == id).next()
+        self.peers.iter().find(|f| f.id == id)
     }
 
     pub fn has_flag(&self, flag_name: &str) -> bool {
         self.flags.iter().any(|f| f.as_ref() == flag_name)
     }
-
 }
 
 fn get_network_address_v4(net: &Ipv4Network, num: u32) -> Ipv4Addr {
     assert!(net.size() > num);
-    Ipv4Addr::from(u32::from_be_bytes(net.ip().octets().clone()) | (num & (!0u32 >> net.prefix())))
+    Ipv4Addr::from(u32::from_be_bytes(net.ip().octets()) | (num & (!0u32 >> net.prefix())))
 }
 
 fn get_network_address_v6(net: &Ipv6Network, num: u128) -> Ipv6Addr {
     assert!(net.size() > num);
-    Ipv6Addr::from(u128::from_be_bytes(net.ip().octets().clone()) | (num & (!0u128 >> net.prefix())))
+    Ipv6Addr::from(
+        u128::from_be_bytes(net.ip().octets()) | (num & (!0u128 >> net.prefix())),
+    )
 }
-
 
 pub fn get_network_address_as_network(net: &IpNetwork, num: u128) -> IpNetwork {
     match get_network_address(&net, num) {
-        a@IpAddr::V4(_) => IpNetwork::new(a, 32).unwrap(),
-        a@IpAddr::V6(_) => IpNetwork::new(a, 128).unwrap(),
+        a @ IpAddr::V4(_) => IpNetwork::new(a, 32).unwrap(),
+        a @ IpAddr::V6(_) => IpNetwork::new(a, 128).unwrap(),
     }
 }
 

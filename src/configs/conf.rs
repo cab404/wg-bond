@@ -1,5 +1,5 @@
 // ! Wireguard conf file
-use std::ops::{AddAssign};
+use std::ops::AddAssign;
 
 use crate::configs::*;
 use crate::wg_tools::*;
@@ -30,9 +30,7 @@ impl WGConfBuilder for String {
 pub struct ConfFile {}
 
 impl ConfigType for ConfFile {
-
     fn write_config(net: &WireguardNetworkInfo, id: u128) -> String {
-
         let my_peer = net.by_id(id).unwrap();
         let other_peers: Vec<&PeerInfo> = net.peer_list(my_peer);
         let interface = net.map_to_interface(my_peer);
@@ -51,7 +49,6 @@ impl ConfigType for ConfFile {
         built.cfg_param_opt("PostDown", interface.post_down);
 
         for peer in other_peers.iter() {
-
             built.add_assign("[Peer] # ");
             built.add_assign(peer.name.as_str());
             built.add_assign("\n");
@@ -65,15 +62,14 @@ impl ConfigType for ConfFile {
 
             let ips = &b_peer.allowed_ips;
             if !ips.is_empty() {
-                let nets: String = ips.iter()
+                let nets: String = ips
+                    .iter()
                     .map(IpNetwork::to_string)
                     .collect::<Vec<String>>()
                     .join(&", ".to_string());
                 built.cfg_param("AllowedIPs", &nets)
             }
-
         }
         built
     }
-
 }
