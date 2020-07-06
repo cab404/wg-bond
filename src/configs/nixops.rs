@@ -10,6 +10,14 @@ impl ConfigType for NixOpsConf {
 
         built += "{";
 
+        built += "defaults={networking.extraHosts=\"";
+        built += hosts::export_hosts(net)
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\t", "\\t")
+            .as_str();
+        built += "\";};";
+
         for peer in net.peers.iter().filter(|a| a.has_flag("NixOpsMachine")) {
             built += "\"";
             built += peer.name.as_str();

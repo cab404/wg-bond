@@ -9,6 +9,7 @@ use strum_macros::AsRefStr;
 use url::Host;
 
 pub mod conf;
+pub mod hosts;
 pub mod nix;
 pub mod nixops;
 pub mod qr;
@@ -101,10 +102,7 @@ pub fn check_endpoint(address: &str) -> Option<&str> {
 
 #[test]
 pub fn test_check_endpoint() {
-    assert_eq!(
-        check_endpoint(&"test:8080"),
-        Some("test:8080")
-    );
+    assert_eq!(check_endpoint(&"test:8080"), Some("test:8080"));
     assert_eq!(check_endpoint("test::"), None);
 }
 
@@ -372,9 +370,7 @@ fn get_network_address_v4(net: &Ipv4Network, num: u32) -> Ipv4Addr {
 
 fn get_network_address_v6(net: &Ipv6Network, num: u128) -> Ipv6Addr {
     assert!(net.size() > num);
-    Ipv6Addr::from(
-        u128::from_be_bytes(net.ip().octets()) | (num & (!0u128 >> net.prefix())),
-    )
+    Ipv6Addr::from(u128::from_be_bytes(net.ip().octets()) | (num & (!0u128 >> net.prefix())))
 }
 
 pub fn get_network_address_as_network(net: &IpNetwork, num: u128) -> IpNetwork {

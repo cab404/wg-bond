@@ -106,12 +106,8 @@ fn parse_peer_edit_command(peer: &mut configs::PeerInfo, matches: &clap::ArgMatc
         .value_of("keepalive")
         .map(|n| u16::from_str(n).unwrap())
     {
-        peer.flags.insert(
-            0,
-            configs::PeerFlag::Keepalive {
-                keepalive,
-            },
-        )
+        peer.flags
+            .insert(0, configs::PeerFlag::Keepalive { keepalive })
     }
 
     peer.flags.sort_by(|a, b| a.as_ref().cmp(b.as_ref()));
@@ -204,9 +200,7 @@ fn command_export(
                 newcfg.peers = vec![gateway.clone(), peer.clone()];
             }
             Some(p) => {
-                let gateway = cfg
-                    .by_name(p)
-                    .expect("No gateway found by given name");
+                let gateway = cfg.by_name(p).expect("No gateway found by given name");
                 // if !peer_is_gateway(gateway) {
                 //     panic!("Peer with this name is not a gateway!")
                 // }
@@ -394,9 +388,7 @@ fn main() {
         Ok(()) => {
             save_config(&net, cfg_file).unwrap();
         }
-        Err(e) => {
-            println!("Error occured ({})", e)
-        }
+        Err(e) => println!("Error occured ({})", e),
     }
 }
 

@@ -29,7 +29,11 @@ impl ConfigType for NixConf {
         built += format!("networking.wg-quick.interfaces.\"{}\"={{", &net.name).as_str();
         built += format!("privateKey=\"{}\";", &my_peer.private_key).as_str();
 
-        built += set_assign_raw("listenPort", &my_peer.endpoint.as_ref().map(String::as_str).map(get_port)).as_str();
+        built += set_assign_raw(
+            "listenPort",
+            &my_peer.endpoint.as_ref().map(String::as_str).map(get_port),
+        )
+        .as_str();
 
         fn wrap_string<T>(thing: &T) -> String
         where
