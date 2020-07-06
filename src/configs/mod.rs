@@ -244,7 +244,7 @@ impl PeerFlag {
 
     fn apply_to_configuration(
         &self,
-        network: &WireguardNetworkInfo,
+        _network: &WireguardNetworkInfo,
         config: &mut WireguardConfiguration,
     ) {
         match self {
