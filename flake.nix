@@ -9,8 +9,7 @@
 
   outputs = { self, nixpkgs, utils }:
     utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = import nixpkgs { inherit system; };
+      let pkgs = import nixpkgs { inherit system; };
       in {
 
         defaultPackage = with pkgs;
@@ -21,6 +20,11 @@
             cargoSha256 =
               "0gdpfzs62hph65yzbf8mm0xfmvihsprigz7jq4jfxh08yf0w7s1i";
           };
+
+        defaultApp = {
+          type = "app";
+          program = "${self.defaultPackage."${system}"}/bin/wgbond";
+        };
 
       });
 }
