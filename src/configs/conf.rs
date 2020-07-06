@@ -2,7 +2,6 @@
 use std::ops::AddAssign;
 
 use crate::configs::*;
-use crate::wg_tools::*;
 
 trait WGConfBuilder {
     fn cfg_param(&mut self, name: &str, value: impl core::fmt::Display);
@@ -32,7 +31,7 @@ pub struct ConfFile {}
 impl ConfigType for ConfFile {
     fn write_config(net: &WireguardNetworkInfo, id: u128) -> String {
         let my_peer = net.by_id(id).unwrap();
-        let other_peers: Vec<&PeerInfo> = net.peer_list(my_peer);
+        let config = net.get_configuration(my_peer);
         let interface = net.map_to_interface(my_peer);
 
         let mut built = String::new();
@@ -48,19 +47,16 @@ impl ConfigType for ConfFile {
         built.cfg_param_opt("PostUp", interface.post_up);
         built.cfg_param_opt("PostDown", interface.post_down);
 
-        for peer in other_peers.iter() {
-            built.add_assign("[Peer] # ");
-            built.add_assign(peer.name.as_str());
+        for peer in config.peers.iter() {
+            built.add_assign("[Peer]");
             built.add_assign("\n");
 
-            let b_peer = net.map_to_peer(peer);
+            built.cfg_param("PublicKey", &peer.public_key);
+            built.cfg_param_opt("PresharedKey", peer.preshared_key.as_ref());
+            built.cfg_param_opt("Endpoint", peer.endpoint.as_ref());
+            built.cfg_param_opt("PersistentKeepalive", peer.persistent_keepalive);
 
-            built.cfg_param("PublicKey", &gen_public_key(&peer.private_key));
-            built.cfg_param_opt("PresharedKey", b_peer.preshared_key);
-            built.cfg_param_opt("Endpoint", b_peer.endpoint);
-            built.cfg_param_opt("PersistentKeepalive", b_peer.persistent_keepalive);
-
-            let ips = &b_peer.allowed_ips;
+            let ips = &peer.allowed_ips;
             if !ips.is_empty() {
                 let nets: String = ips
                     .iter()
