@@ -8,8 +8,9 @@ pub struct NixConf {}
 impl ConfigType for NixConf {
     fn write_config(net: &WireguardNetworkInfo, id: u128) -> String {
         let my_peer = net.by_id(id).unwrap();
-        let other_peers: Vec<&PeerInfo> = net.peer_list(my_peer);
-        let interface = net.map_to_interface(my_peer);
+
+        let config = net.get_configuration(my_peer);
+        let interface = config.interface;
 
         fn set_assign(key: &str, value: &Option<impl core::fmt::Display>) -> String {
             match value {
@@ -27,13 +28,9 @@ impl ConfigType for NixConf {
 
         let mut built = String::new();
         built += format!("networking.wg-quick.interfaces.\"{}\"={{", &net.name).as_str();
-        built += format!("privateKey=\"{}\";", &my_peer.private_key).as_str();
+        built += format!("privateKey=\"{}\";", &interface.private_key).as_str();
 
-        built += set_assign_raw(
-            "listenPort",
-            &my_peer.endpoint.as_ref().map(String::as_str).map(get_port),
-        )
-        .as_str();
+        built += set_assign_raw("listenPort", &interface.port).as_str();
 
         fn wrap_string<T>(thing: &T) -> String
         where
@@ -60,7 +57,7 @@ impl ConfigType for NixConf {
         built += set_assign("postDown", &interface.post_down).as_str();
 
         // Peers
-        fn encode_peer(peer: Peer) -> String {
+        fn encode_peer(peer: &Peer) -> String {
             let mut built = String::new();
             built += "{";
             built += set_assign("publicKey", &Some(&peer.public_key)).as_str();
@@ -82,9 +79,10 @@ impl ConfigType for NixConf {
 
         built += format!(
             "peers=[{}];",
-            &other_peers
+            config
+                .peers
                 .iter()
-                .map(|peer| encode_peer(net.map_to_peer(peer)))
+                .map(encode_peer)
                 .collect::<Vec<String>>()
                 .join(" ")
         )
