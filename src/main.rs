@@ -13,7 +13,7 @@ use std::str::FromStr;
 use configs::conf::ConfFile;
 use configs::nix::NixConf;
 use configs::nixops::NixOpsConf;
-use configs::qr::QRConfig;
+use configs::{hosts::export_hosts, qr::QRConfig};
 
 use clap;
 
@@ -350,6 +350,9 @@ fn main() {
             clap::SubCommand::with_name("nixops").about("Generates NixOps config for all peers"),
         )
         .subcommand(
+            clap::SubCommand::with_name("hosts").about("Generates /etc/hosts for all peers"),
+        )
+        .subcommand(
             export_params(clap::SubCommand::with_name("qr")).about("Generates QR code with config"),
         )
         .subcommand(
@@ -376,6 +379,10 @@ fn main() {
             ("nix", Some(matches)) => command_export(net, matches, NixConf::write_config),
             ("conf", Some(matches)) => command_export(net, matches, ConfFile::write_config),
             ("qr", Some(matches)) => command_export(net, matches, QRConfig::write_config),
+            ("hosts", Some(_)) => {
+                println!("{}", export_hosts(net));
+                Ok(())
+            }
             ("nixops", Some(_)) => {
                 println!("{}", NixOpsConf::write_config(net, 0));
                 Ok(())
