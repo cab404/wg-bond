@@ -237,7 +237,6 @@ impl PeerFlag {
                     peer.allowed_ips.insert(0, *network)
                 }
             }
-            PeerFlag::Keepalive { keepalive } => peer.persistent_keepalive = Some(*keepalive),
             _ => {}
         }
     }
