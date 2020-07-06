@@ -34,3 +34,8 @@ nixops deploy
 wgbond qr phone
 
 ```
+
+## Developing
+
+Use [VSCodium](https://vscodium.com/) + [Nix](https://nixos.com/nix) for the best experience.
+Just add recommended extensions, and you are good to go.
