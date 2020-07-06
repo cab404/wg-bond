@@ -106,6 +106,7 @@ pub fn test_check_endpoint() {
     assert_eq!(check_endpoint("test::"), None);
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct WireguardConfiguration {
     pub interface: Interface,
     pub peers: Vec<Peer>,
