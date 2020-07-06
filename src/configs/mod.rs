@@ -106,6 +106,11 @@ pub fn test_check_endpoint() {
     assert_eq!(check_endpoint("test::"), None);
 }
 
+pub struct WireguardConfiguration {
+    pub interface: Interface,
+    pub peers: Vec<Peer>,
+}
+
 // Mapping of wg-quick interface.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Interface {
@@ -236,6 +241,23 @@ impl PeerFlag {
             _ => {}
         }
     }
+
+    fn apply_to_configuration(
+        &self,
+        network: &WireguardNetworkInfo,
+        config: &mut WireguardConfiguration,
+    ) {
+        match self {
+            PeerFlag::Keepalive { keepalive } => {
+                for peer in config.peers.iter_mut() {
+                    if peer.endpoint.is_some() {
+                        peer.persistent_keepalive = Some(*keepalive);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 // Information about a peer
@@ -344,6 +366,23 @@ impl WireguardNetworkInfo {
         } else {
             others()
         }
+    }
+
+    pub fn get_configuration(&self, info: &PeerInfo) -> WireguardConfiguration {
+        let mut config = WireguardConfiguration {
+            interface: self.map_to_interface(info),
+            peers: self
+                .peer_list(info)
+                .iter()
+                .map(|x| self.map_to_peer(x))
+                .collect::<Vec<_>>(),
+        };
+
+        info.flags
+            .iter()
+            .for_each(|flag| flag.apply_to_configuration(self, &mut config));
+
+        config
     }
 
     pub fn by_name_mut(&mut self, name: &str) -> Option<&mut PeerInfo> {
