@@ -322,7 +322,7 @@ impl WireguardNetworkInfo {
         peer.allowed_ips = self
             .networks
             .iter()
-            .map(|f| get_network_address_as_network(f, info.id))
+            .map(|f| get_network_address_as_network(*f, info.id))
             .collect::<Vec<_>>();
 
         for flag in &info.flags {
@@ -337,7 +337,7 @@ impl WireguardNetworkInfo {
         interface.address = self
             .networks
             .iter()
-            .map(|f| get_network_address(f, info.id))
+            .map(|f| get_network_address(*f, info.id))
             .collect::<Vec<_>>();
 
         for flag in &info.flags {
@@ -402,27 +402,27 @@ impl WireguardNetworkInfo {
     }
 }
 
-fn get_network_address_v4(net: &Ipv4Network, num: u32) -> Ipv4Addr {
+fn get_network_address_v4(net: Ipv4Network, num: u32) -> Ipv4Addr {
     assert!(net.size() > num);
     Ipv4Addr::from(u32::from_be_bytes(net.ip().octets()) | (num & (!0u32 >> net.prefix())))
 }
 
-fn get_network_address_v6(net: &Ipv6Network, num: u128) -> Ipv6Addr {
+fn get_network_address_v6(net: Ipv6Network, num: u128) -> Ipv6Addr {
     assert!(net.size() > num);
     Ipv6Addr::from(u128::from_be_bytes(net.ip().octets()) | (num & (!0u128 >> net.prefix())))
 }
 
-pub fn get_network_address_as_network(net: &IpNetwork, num: u128) -> IpNetwork {
-    match get_network_address(&net, num) {
+pub fn get_network_address_as_network(net: IpNetwork, num: u128) -> IpNetwork {
+    match get_network_address(net, num) {
         a @ IpAddr::V4(_) => IpNetwork::new(a, 32).unwrap(),
         a @ IpAddr::V6(_) => IpNetwork::new(a, 128).unwrap(),
     }
 }
 
-pub fn get_network_address(net: &IpNetwork, num: u128) -> IpAddr {
-    match &net {
-        IpNetwork::V4(n) => IpAddr::V4(get_network_address_v4(&n, num.try_into().unwrap())),
-        IpNetwork::V6(n) => IpAddr::V6(get_network_address_v6(&n, num.try_into().unwrap())),
+pub fn get_network_address(net: IpNetwork, num: u128) -> IpAddr {
+    match net {
+        IpNetwork::V4(n) => IpAddr::V4(get_network_address_v4(n, num.try_into().unwrap())),
+        IpNetwork::V6(n) => IpAddr::V6(get_network_address_v6(n, num.try_into().unwrap())),
     }
 }
 

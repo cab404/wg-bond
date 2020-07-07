@@ -18,7 +18,7 @@ pub fn gen_private_key() -> String {
     read_key(&key_bytes)
 }
 
-pub fn gen_public_key(private_key: &String) -> String {
+pub fn gen_public_key(private_key: &str) -> String {
     let mut child = Command::new("wg")
         .arg("pubkey")
         .stdin(Stdio::piped())
