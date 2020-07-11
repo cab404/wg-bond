@@ -20,10 +20,9 @@ wgbond add server \
 --nixops \          # Include into NixOps export
 --center \          # Make clients use this peer as gateway
 --gateway \         # And get internet through it
---keepalive 30 \    # Also send it keepalives every 30 seconds
 --masquerade eth0   # And forward via eth0
 
-wgbond add phone
+wgbond add phone --keepalive 30
 
 # Generate and push config to your NixOps cluster
 wgbond nixops > wg.nix
