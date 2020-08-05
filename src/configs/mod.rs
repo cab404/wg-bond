@@ -143,6 +143,7 @@ pub enum PeerFlag {
     Masquerade { interface: String },
     Gateway { ignore_local_networks: bool },
     Keepalive { keepalive: u16 },
+    DNS { addresses: Vec<IpAddr> },
     NixOpsMachine,
     Center,
 }
@@ -157,40 +158,46 @@ fn test_flags_to_string() {
 
 impl PeerFlag {
     fn apply_to_interface(&self, network: &WireguardNetworkInfo, interface: &mut Interface) {
-        if let PeerFlag::Masquerade { interface: if_name } = self {
-            interface.pre_up = network
-                .networks
-                .iter()
-                .map(|f| match f {
-                    IpNetwork::V4(n) => format!(
-                        "iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}",
-                        "-A", &n, if_name
-                    ),
-                    IpNetwork::V6(n) => format!(
-                        "ip6tables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}",
-                        "-A", &n, if_name
-                    ),
-                })
-                .collect::<Vec<_>>()
-                .join(";")
-                .into();
+        match self {
+            PeerFlag::Masquerade { interface: if_name } => {
+                interface.pre_up = network
+                    .networks
+                    .iter()
+                    .map(|f| match f {
+                        IpNetwork::V4(n) => format!(
+                            "iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}",
+                            "-A", &n, if_name
+                        ),
+                        IpNetwork::V6(n) => format!(
+                            "ip6tables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}",
+                            "-A", &n, if_name
+                        ),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(";")
+                    .into();
 
-            interface.pre_down = network
-                .networks
-                .iter()
-                .map(|f| match f {
-                    IpNetwork::V4(n) => format!(
-                        "iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}",
-                        "-D", &n, if_name
-                    ),
-                    IpNetwork::V6(n) => format!(
-                        "ip6tables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}",
-                        "-D", &n, if_name
-                    ),
-                })
-                .collect::<Vec<_>>()
-                .join(";")
-                .into();
+                interface.pre_down = network
+                    .networks
+                    .iter()
+                    .map(|f| match f {
+                        IpNetwork::V4(n) => format!(
+                            "iptables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}",
+                            "-D", &n, if_name
+                        ),
+                        IpNetwork::V6(n) => format!(
+                            "ip6tables {} POSTROUTING -t nat -j MASQUERADE -s {} -o {}",
+                            "-D", &n, if_name
+                        ),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(";")
+                    .into();
+            }
+            PeerFlag::DNS { addresses } => {
+                interface.dns = addresses.clone();
+            }
+            _ => {}
         }
     }
 
