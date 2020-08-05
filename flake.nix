@@ -14,7 +14,7 @@
 
         defaultPackage = with pkgs;
           rustPlatform.buildRustPackage {
-            pname = "wgbond";
+            pname = "wg-bond";
             version = "0.1.0";
             src = ./.;
             cargoSha256 =
@@ -23,7 +23,7 @@
 
         defaultApp = {
           type = "app";
-          program = "${self.defaultPackage."${system}"}/bin/wgbond";
+          program = "${self.defaultPackage."${system}"}/bin/wg-bond";
         };
 
       });

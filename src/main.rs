@@ -304,7 +304,7 @@ fn main() {
     pretty_env_logger::init();
     // std::panic::set_hook(Box::new(panic_hook));
 
-    let args = clap::App::new("wgbond")
+    let args = clap::App::new("wg-bond")
         .version("0.1")
         .about("Wireguard configuration manager")
         .author("Vladimir Serov <cab404>")
