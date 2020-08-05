@@ -367,6 +367,15 @@ fn main() {
             clap::SubCommand::with_name("hosts").about("Generates /etc/hosts for all peers"),
         )
         .subcommand(
+            clap::SubCommand::with_name("rm")
+                .about("Deletes a peer")
+                .arg(
+                    clap::Arg::with_name("name")
+                        .help("Name of a new peer")
+                        .required(true),
+                ),
+        )
+        .subcommand(
             export_params(clap::SubCommand::with_name("qr")).about("Generates QR code with config"),
         )
         .subcommand(
@@ -382,6 +391,16 @@ fn main() {
         read_config(cfg_file).unwrap()
     };
 
+    fn command_remove(
+        cfg: &mut configs::WireguardNetworkInfo,
+        matches: &clap::ArgMatches,
+    ) -> Result<(), u8> {
+        let name = matches.value_of("name").ok_or(0)?;
+        let peer = cfg.peers.iter().position(|f| f.name == name).ok_or(1)?;
+        cfg.peers.remove(peer);
+        Ok(())
+    }
+
     fn commands(
         net: &mut configs::WireguardNetworkInfo,
         args: &clap::ArgMatches,
@@ -393,6 +412,7 @@ fn main() {
             ("nix", Some(matches)) => command_export(net, matches, NixConf::write_config),
             ("conf", Some(matches)) => command_export(net, matches, ConfFile::write_config),
             ("qr", Some(matches)) => command_export(net, matches, QRConfig::write_config),
+            ("rm", Some(matches)) => command_remove(net, matches),
             ("hosts", Some(_)) => {
                 println!("{}", export_hosts(net));
                 Ok(())
