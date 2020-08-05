@@ -50,10 +50,8 @@ impl ConfigType for ConfFile {
         let mut built = String::new();
         built.add_assign("[Interface]\n");
         built.cfg_param("PrivateKey", &interface.private_key);
-        for address in &interface.address {
-            built.cfg_param("Address", &address);
-        }
 
+        built.cfg_write_list("Address", interface.address);
         built.cfg_write_list("DNS", interface.dns);
         built.cfg_param_opt("ListenPort", interface.port);
         built.cfg_param_opt("Table", interface.table);
@@ -70,16 +68,13 @@ impl ConfigType for ConfFile {
             built.cfg_param_opt("PresharedKey", peer.preshared_key.as_ref());
             built.cfg_param_opt("Endpoint", peer.endpoint.as_ref());
             built.cfg_param_opt("PersistentKeepalive", peer.persistent_keepalive);
-
-            let ips = &peer.allowed_ips;
-            if !ips.is_empty() {
-                let nets: String = ips
+            built.cfg_write_list(
+                "AllowedIPs",
+                peer.allowed_ips
                     .iter()
                     .map(IpNetwork::to_string)
-                    .collect::<Vec<String>>()
-                    .join(&", ".to_string());
-                built.cfg_param("AllowedIPs", &nets)
-            }
+                    .collect::<Vec<_>>(),
+            );
         }
         built
     }
