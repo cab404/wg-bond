@@ -8,6 +8,7 @@ use crate::configs::check_endpoint;
 use crate::configs::{ConfigType, ConfigWriter};
 use clap::AppSettings::SubcommandRequired;
 use ipnetwork::IpNetwork;
+use std::net::IpAddr;
 use std::str::FromStr;
 
 use configs::conf::ConfFile;
@@ -74,6 +75,18 @@ fn command_init_config(matches: &clap::ArgMatches) -> configs::WireguardNetworkI
 fn parse_peer_edit_command(peer: &mut configs::PeerInfo, matches: &clap::ArgMatches) {
     if let Some(endpoint) = matches.value_of("endpoint") {
         peer.endpoint = check_endpoint(endpoint).map(str::to_string);
+    }
+
+    if let Some(dns) = matches.values_of("dns") {
+        peer.flags.insert(
+            0,
+            configs::PeerFlag::DNS {
+                addresses: dns
+                    .map(IpAddr::from_str)
+                    .map(Result::unwrap)
+                    .collect::<Vec<_>>(),
+            },
+        )
     }
 
     if let Some(interface) = matches.value_of("masquerade") {
@@ -222,6 +235,14 @@ fn edit_params<'a, 'b>(subcommand: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
             .help("Endpoint address of a peer")
             .value_name("ADDRESS:PORT")
             .use_delimiter(false)
+            .takes_value(true)
+        )
+        .arg(clap::Arg::with_name("dns")
+            .short("d")
+            .long("dns")
+            .help("DNS for a peer")
+            .value_name("DNS_1,DNS_2")
+            .use_delimiter(true)
             .takes_value(true)
         )
         .arg(clap::Arg::with_name("gateway")

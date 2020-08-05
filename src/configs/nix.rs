@@ -51,6 +51,19 @@ impl ConfigType for NixConf {
         )
         .as_str();
 
+        if !interface.dns.is_empty() {
+            built += format!(
+                "dns=[{}];",
+                &interface
+                    .dns
+                    .iter()
+                    .map(wrap_string)
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            )
+            .as_str()
+        }
+
         built += set_assign("preUp", &interface.pre_up).as_str();
         built += set_assign("preDown", &interface.pre_down).as_str();
         built += set_assign("postUp", &interface.post_up).as_str();
