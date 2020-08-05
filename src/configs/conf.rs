@@ -46,6 +46,17 @@ impl ConfigType for ConfFile {
         built.cfg_param_opt("PreDown", interface.pre_down);
         built.cfg_param_opt("PostUp", interface.post_up);
         built.cfg_param_opt("PostDown", interface.post_down);
+        if !interface.dns.is_empty() {
+            built.cfg_param(
+                "DNS",
+                interface
+                    .dns
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
+        }
 
         for peer in config.peers.iter() {
             built.add_assign("[Peer]");
