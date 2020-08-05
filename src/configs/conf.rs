@@ -6,6 +6,7 @@ use crate::configs::*;
 trait WGConfBuilder {
     fn cfg_param(&mut self, name: &str, value: impl core::fmt::Display);
     fn cfg_param_opt(&mut self, name: &str, value: Option<impl core::fmt::Display>);
+    fn cfg_write_list(&mut self, name: &str, list: Vec<impl core::fmt::Display>);
 }
 
 impl WGConfBuilder for String {
@@ -24,6 +25,18 @@ impl WGConfBuilder for String {
             self.add_assign("\n");
         }
     }
+
+    fn cfg_write_list(&mut self, name: &str, list: Vec<impl core::fmt::Display>) {
+        if !list.is_empty() {
+            self.cfg_param(
+                name,
+                list.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
+        }
+    }
 }
 
 pub struct ConfFile {}
@@ -40,23 +53,14 @@ impl ConfigType for ConfFile {
         for address in &interface.address {
             built.cfg_param("Address", &address);
         }
+
+        built.cfg_write_list("DNS", interface.dns);
         built.cfg_param_opt("ListenPort", interface.port);
         built.cfg_param_opt("Table", interface.table);
         built.cfg_param_opt("PreUp", interface.pre_up);
         built.cfg_param_opt("PreDown", interface.pre_down);
         built.cfg_param_opt("PostUp", interface.post_up);
         built.cfg_param_opt("PostDown", interface.post_down);
-        if !interface.dns.is_empty() {
-            built.cfg_param(
-                "DNS",
-                interface
-                    .dns
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            );
-        }
 
         for peer in config.peers.iter() {
             built.add_assign("[Peer]");
