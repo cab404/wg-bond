@@ -65,7 +65,7 @@ fn split_endpoint(address: String) -> Result<(Host, u16), String> {
             Host::parse(split[0]).map_err(|f| f.to_string())?,
             u16::from_str(split[1]).map_err(|_| "Port number is weird.")?,
         )),
-        _ => Err("You have too much semicolons.".to_string()),
+        _ => panic!(),
     }
 }
 #[test]
@@ -74,7 +74,10 @@ fn test_parse_endpoint() {
         split_endpoint("test:8080".to_string()),
         Ok((Host::Domain("test".into()), 8080))
     );
-    assert_eq!(split_endpoint("@:8080".to_string()), Err("".to_string()));
+    assert_eq!(
+        split_endpoint("@:8080".to_string()),
+        Err("invalid domain character".to_string())
+    );
 }
 
 pub fn get_port(address: String) -> Result<u16, String> {
@@ -98,8 +101,8 @@ pub fn test_check_endpoint() {
         Ok("test:8080".to_string())
     );
     assert_eq!(
-        check_endpoint("test::".to_string()),
-        Err("Too many semicolons".to_string())
+        check_endpoint("::test:".to_string()),
+        Err("invalid domain character".to_string())
     );
 }
 
