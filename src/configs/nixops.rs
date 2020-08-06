@@ -3,15 +3,15 @@ use crate::configs::*;
 
 pub struct NixOpsConf {}
 
-impl ConfigType for NixOpsConf {
-    fn write_config(net: &WireguardNetworkInfo, _id: u128) -> String {
+impl NixOpsConf {
+    pub fn write_config(net: &WireguardNetworkInfo) -> Result<String, String> {
         // TODO: Don't just ignore id, and make write_config accept ArgMatches instead
         let mut built = String::new();
 
         built += "{";
 
         built += "defaults={networking.extraHosts=\"";
-        built += hosts::export_hosts(net)
+        built += hosts::export_hosts(net)?
             .replace("\"", "\\\"")
             .replace("\n", "\\n")
             .replace("\t", "\\t")
@@ -22,11 +22,11 @@ impl ConfigType for NixOpsConf {
             built += "\"";
             built += peer.name.as_str();
             built += "\".";
-            built += NixConf::write_config(net, peer.id).as_str();
+            built += NixConf::write_config(net.get_configuration(peer)?).as_str();
         }
 
         built += "}\n";
 
-        built
+        Ok(built)
     }
 }

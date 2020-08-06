@@ -42,10 +42,8 @@ impl WGConfBuilder for String {
 pub struct ConfFile {}
 
 impl ConfigType for ConfFile {
-    fn write_config(net: &WireguardNetworkInfo, id: u128) -> String {
-        let my_peer = net.by_id(id).unwrap();
-        let config = net.get_configuration(my_peer);
-        let interface = net.map_to_interface(my_peer);
+    fn write_config(config: WireguardConfiguration) -> String {
+        let interface = config.interface;
 
         let mut built = String::new();
         built.add_assign("[Interface]\n");
