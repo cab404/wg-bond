@@ -51,65 +51,66 @@ const GLOBAL_NET: &[&str; 30] = &[
 /// ```
 /// assert_eq!(parse_url("test:8080"), Some((Host::Domain("test".to_string()), 8080)));
 /// ```
-fn split_endpoint(address: &str) -> Option<(Host, u16)> {
+fn split_endpoint(address: String) -> Result<(Host, u16), String> {
     let split = address
         .rsplitn(2, ':')
         .collect::<Vec<_>>()
         .into_iter()
         .rev()
         .collect::<Vec<_>>();
-    if split.len() == 2 {
-        if let (Some(host), Some(port)) = (
-            Host::parse(split[0]).map(Some).unwrap_or(None),
-            u16::from_str(split[1]).map(Some).unwrap_or(None),
-        ) {
-            Some((host, port))
-        } else {
-            None
-        }
-    } else {
-        None
+
+    match split.len() {
+        1 => Err("You forgot the port.".to_string()),
+        2 => Ok((
+            Host::parse(split[0]).map_err(|f| f.to_string())?,
+            u16::from_str(split[1]).map_err(|_| "Port number is weird.")?,
+        )),
+        _ => panic!(),
     }
 }
 #[test]
 fn test_parse_endpoint() {
     assert_eq!(
-        split_endpoint("test:8080"),
-        Some((Host::Domain("test".into()), 8080))
+        split_endpoint("test:8080".to_string()),
+        Ok((Host::Domain("test".into()), 8080))
     );
-    assert_eq!(split_endpoint("@:8080"), None);
+    assert_eq!(
+        split_endpoint("@:8080".to_string()),
+        Err("invalid domain character".to_string())
+    );
 }
 
-pub fn get_port(address: &str) -> u16 {
-    split_endpoint(address)
-        .expect("Failed to parse endpoint!")
-        .1
+pub fn get_port(address: String) -> Result<u16, String> {
+    Ok(split_endpoint(address)?.1)
 }
 
 #[test]
 pub fn test_get_port() {
-    assert_eq!(get_port("test:8080"), 8080);
+    assert_eq!(get_port("test:8080".to_string()), Ok(8080));
 }
 
 /// Checks whether given string is a valid endpoint
-pub fn check_endpoint(address: &str) -> Option<&str> {
-    if split_endpoint(address).is_some() {
-        Some(address)
-    } else {
-        None
-    }
+pub fn check_endpoint(address: String) -> Result<String, String> {
+    split_endpoint(address.clone()).map(|_| address)
 }
 
 #[test]
 pub fn test_check_endpoint() {
-    assert_eq!(check_endpoint(&"test:8080"), Some("test:8080"));
-    assert_eq!(check_endpoint("test::"), None);
+    assert_eq!(
+        check_endpoint("test:8080".to_string()),
+        Ok("test:8080".to_string())
+    );
+    assert_eq!(
+        check_endpoint("::test:".to_string()),
+        Err("invalid domain character".to_string())
+    );
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WireguardConfiguration {
     pub interface: Interface,
     pub peers: Vec<Peer>,
+    pub name: String,
 }
 
 // Mapping of wg-quick interface.
@@ -282,11 +283,11 @@ impl PeerInfo {
         self.flags.iter().any(|f| f.as_ref() == flag_name)
     }
 
-    pub fn derive_interface(&self) -> Interface {
-        Interface {
+    pub fn derive_interface(&self) -> Result<Interface, String> {
+        Ok(Interface {
             address: vec![],
             private_key: self.private_key.clone(),
-            port: self.endpoint.as_ref().map(String::as_str).map(get_port),
+            port: self.endpoint.clone().map(|f| get_port(f)).transpose()?,
             dns: vec![],
             fw_mark: None,
             table: None,
@@ -294,17 +295,17 @@ impl PeerInfo {
             post_up: None,
             pre_down: None,
             post_down: None,
-        }
+        })
     }
 
-    pub fn derive_peer(&self) -> Peer {
-        Peer {
-            public_key: wg_tools::gen_public_key(&self.private_key),
+    pub fn derive_peer(&self) -> Result<Peer, String> {
+        Ok(Peer {
+            public_key: wg_tools::gen_public_key(&self.private_key)?,
             allowed_ips: vec![],
             endpoint: self.endpoint.clone(),
             persistent_keepalive: None,
             preshared_key: None,
-        }
+        })
     }
 }
 
@@ -324,8 +325,8 @@ pub enum NetworkFlag {
 }
 
 impl WireguardNetworkInfo {
-    pub fn map_to_peer(&self, info: &PeerInfo) -> Peer {
-        let mut peer = info.derive_peer();
+    pub fn map_to_peer(&self, info: &PeerInfo) -> Result<Peer, String> {
+        let mut peer = info.derive_peer()?;
         peer.allowed_ips = self
             .networks
             .iter()
@@ -335,11 +336,11 @@ impl WireguardNetworkInfo {
         for flag in &info.flags {
             flag.apply_to_peer(self, &mut peer)
         }
-        peer
+        Ok(peer)
     }
 
-    pub fn map_to_interface(&self, info: &PeerInfo) -> Interface {
-        let mut interface = info.derive_interface();
+    pub fn map_to_interface(&self, info: &PeerInfo) -> Result<Interface, String> {
+        let mut interface = info.derive_interface()?;
 
         interface.address = self
             .networks
@@ -350,7 +351,7 @@ impl WireguardNetworkInfo {
         for flag in &info.flags {
             flag.apply_to_interface(self, &mut interface)
         }
-        interface
+        Ok(interface)
     }
 
     pub fn peer_list(&self, info: &PeerInfo) -> Vec<&PeerInfo> {
@@ -375,21 +376,22 @@ impl WireguardNetworkInfo {
         }
     }
 
-    pub fn get_configuration(&self, info: &PeerInfo) -> WireguardConfiguration {
+    pub fn get_configuration(&self, info: &PeerInfo) -> Result<WireguardConfiguration, String> {
         let mut config = WireguardConfiguration {
-            interface: self.map_to_interface(info),
+            interface: self.map_to_interface(info)?,
             peers: self
                 .peer_list(info)
                 .iter()
                 .map(|x| self.map_to_peer(x))
-                .collect::<Vec<_>>(),
+                .collect::<Result<Vec<_>, _>>()?,
+            name: self.name.clone(),
         };
 
         info.flags
             .iter()
             .for_each(|flag| flag.apply_to_configuration(self, &mut config));
 
-        config
+        Ok(config)
     }
 
     pub fn by_name_mut(&mut self, name: &str) -> Option<&mut PeerInfo> {
@@ -398,10 +400,6 @@ impl WireguardNetworkInfo {
 
     pub fn by_name(&self, name: &str) -> Option<&PeerInfo> {
         self.peers.iter().find(|f| f.name == *name)
-    }
-
-    pub fn by_id(&self, id: u128) -> Option<&PeerInfo> {
-        self.peers.iter().find(|f| f.id == id)
     }
 
     pub fn has_flag(&self, flag_name: &str) -> bool {
@@ -433,8 +431,10 @@ pub fn get_network_address(net: IpNetwork, num: u128) -> IpAddr {
     }
 }
 
-pub type ConfigWriter = fn(net: &WireguardNetworkInfo, id: u128) -> String;
+pub type ConfigWriter = fn(net: WireguardConfiguration) -> String;
 
 pub trait ConfigType {
-    fn write_config(net: &WireguardNetworkInfo, id: u128) -> String;
+    // let config = net.get_configuration(my_peer);
+    // let interface = net.map_to_interface(my_peer);
+    fn write_config(net: WireguardConfiguration) -> String;
 }
