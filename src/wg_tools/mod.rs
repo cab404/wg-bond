@@ -8,23 +8,23 @@ fn read_key(from: &Vec<u8>) -> String {
         .to_string()
 }
 
-pub fn gen_private_key() -> String {
+pub fn gen_private_key() -> Result<String, String> {
     let key_bytes = Command::new("wg")
         .arg("genkey")
         .output()
-        .expect("Failed to run 'wg genkey'.")
+        .map_err(|e| format!("Failed to run 'wg genkey': {}", e))?
         .stdout;
 
-    read_key(&key_bytes)
+    Ok(read_key(&key_bytes))
 }
 
-pub fn gen_public_key(private_key: &str) -> String {
+pub fn gen_public_key(private_key: &str) -> Result<String, String> {
     let mut child = Command::new("wg")
         .arg("pubkey")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
-        .unwrap();
+        .map_err(|e| format!("Failed to run 'wg pubkey': {}", e))?;
 
     child
         .stdin
@@ -34,5 +34,5 @@ pub fn gen_public_key(private_key: &str) -> String {
         .unwrap();
 
     let out = child.wait_with_output().unwrap();
-    read_key(&out.stdout)
+    Ok(read_key(&out.stdout))
 }

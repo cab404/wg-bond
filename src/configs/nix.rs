@@ -6,10 +6,7 @@ use crate::configs::*;
 pub struct NixConf {}
 
 impl ConfigType for NixConf {
-    fn write_config(net: &WireguardNetworkInfo, id: u128) -> String {
-        let my_peer = net.by_id(id).unwrap();
-
-        let config = net.get_configuration(my_peer);
+    fn write_config(config: WireguardConfiguration) -> String {
         let interface = config.interface;
 
         fn set_assign(key: &str, value: &Option<impl core::fmt::Display>) -> String {
@@ -27,7 +24,7 @@ impl ConfigType for NixConf {
         }
 
         let mut built = String::new();
-        built += format!("networking.wg-quick.interfaces.\"{}\"={{", &net.name).as_str();
+        built += format!("networking.wg-quick.interfaces.\"{}\"={{", &config.name).as_str();
         built += format!("privateKey=\"{}\";", &interface.private_key).as_str();
 
         built += set_assign_raw("listenPort", &interface.port).as_str();

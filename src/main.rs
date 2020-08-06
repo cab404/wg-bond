@@ -22,6 +22,8 @@ extern crate pretty_env_logger;
 #[macro_use]
 extern crate log;
 
+type RVoid = Result<(), String>;
+
 mod configs;
 mod wg_tools;
 use std::iter::*;
@@ -72,9 +74,9 @@ fn command_init_config(matches: &clap::ArgMatches) -> configs::WireguardNetworkI
     }
 }
 
-fn parse_peer_edit_command(peer: &mut configs::PeerInfo, matches: &clap::ArgMatches) {
+fn parse_peer_edit_command(peer: &mut configs::PeerInfo, matches: &clap::ArgMatches) -> RVoid {
     if let Some(endpoint) = matches.value_of("endpoint") {
-        peer.endpoint = check_endpoint(endpoint).map(str::to_string);
+        peer.endpoint = Some(check_endpoint(endpoint.to_string())?);
     }
 
     if let Some(dns) = matches.values_of("dns") {
@@ -83,8 +85,8 @@ fn parse_peer_edit_command(peer: &mut configs::PeerInfo, matches: &clap::ArgMatc
             configs::PeerFlag::DNS {
                 addresses: dns
                     .map(IpAddr::from_str)
-                    .map(Result::unwrap)
-                    .collect::<Vec<_>>(),
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|f| f.to_string())?,
             },
         )
     }
@@ -125,28 +127,26 @@ fn parse_peer_edit_command(peer: &mut configs::PeerInfo, matches: &clap::ArgMatc
 
     peer.flags.sort_by(|a, b| a.as_ref().cmp(b.as_ref()));
     peer.flags.dedup_by(|a, b| a.as_ref() == b.as_ref());
+
+    Ok(())
 }
 
-fn command_new_peer(
-    cfg: &mut configs::WireguardNetworkInfo,
-    matches: &clap::ArgMatches,
-) -> Result<(), u8> {
+fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::ArgMatches) -> RVoid {
     let peer_id = new_id(cfg);
     let name: String = matches.value_of("name").unwrap().into();
     if cfg.by_name(&name).is_some() {
-        println!("Peer with that name already exist!");
-        return Err(1);
+        Err("Peer with that name already exist!")?;
     }
 
     let mut peer = configs::PeerInfo {
         name,
         endpoint: None,
         id: peer_id,
-        private_key: wg_tools::gen_private_key(),
+        private_key: wg_tools::gen_private_key()?,
         flags: vec![],
     };
 
-    parse_peer_edit_command(&mut peer, matches);
+    parse_peer_edit_command(&mut peer, matches)?;
 
     cfg.peers.append(&mut vec![peer]);
 
@@ -155,7 +155,7 @@ fn command_new_peer(
     Ok(())
 }
 
-fn command_list_peers(cfg: &configs::WireguardNetworkInfo, _: &clap::ArgMatches) -> Result<(), u8> {
+fn command_list_peers(cfg: &configs::WireguardNetworkInfo, _: &clap::ArgMatches) -> RVoid {
     // TODO: replace with some table lib
     println!(
         "{peer_name:>12}   {peer_ip:30}   {endpoint:15}",
@@ -164,7 +164,7 @@ fn command_list_peers(cfg: &configs::WireguardNetworkInfo, _: &clap::ArgMatches)
         endpoint = "Endpoint"
     );
     for peer in cfg.peers.iter() {
-        let wg_peer = cfg.map_to_interface(peer);
+        let wg_peer = cfg.map_to_interface(peer)?;
         println!(
             "{name:>12}   {ip:30}   {endpoint:15}",
             name = peer.name,
@@ -180,14 +180,11 @@ fn command_list_peers(cfg: &configs::WireguardNetworkInfo, _: &clap::ArgMatches)
     Ok(())
 }
 
-fn command_edit_peer(
-    cfg: &mut configs::WireguardNetworkInfo,
-    matches: &clap::ArgMatches,
-) -> Result<(), u8> {
+fn command_edit_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::ArgMatches) -> RVoid {
     let name: String = matches.value_of("name").unwrap().into();
-    let mut peer = cfg.by_name_mut(&name).expect("No peer with this name.");
+    let mut peer = cfg.by_name_mut(&name).ok_or("No peer with this name.")?;
 
-    parse_peer_edit_command(&mut peer, matches);
+    parse_peer_edit_command(&mut peer, matches)?;
 
     Ok(())
 }
@@ -196,9 +193,9 @@ fn command_export(
     cfg: &configs::WireguardNetworkInfo,
     matches: &clap::ArgMatches,
     exporter: ConfigWriter,
-) -> Result<(), u8> {
+) -> RVoid {
     let name: String = matches.value_of("name").unwrap().into();
-    let peer = cfg.by_name(&name).expect("No peer found with this name.");
+    let peer = cfg.by_name(&name).ok_or("No peer found with this name.")?;
 
     let newcfg = &mut cfg.clone();
 
@@ -209,11 +206,11 @@ fn command_export(
                     .peers
                     .iter()
                     .find(|f| f.has_flag("Gateway"))
-                    .expect("No gateways found in your config.");
+                    .ok_or("No gateways found in your config.")?;
                 newcfg.peers = vec![gateway.clone(), peer.clone()];
             }
             Some(p) => {
-                let gateway = cfg.by_name(p).expect("No gateway found by given name");
+                let gateway = cfg.by_name(p).ok_or("No gateway found by given name")?;
                 // if !peer_is_gateway(gateway) {
                 //     panic!("Peer with this name is not a gateway!")
                 // }
@@ -223,7 +220,7 @@ fn command_export(
         };
     };
 
-    println!("{}", exporter(&newcfg, peer.id));
+    println!("{}", exporter(newcfg.get_configuration(peer)?));
     Ok(())
 }
 
@@ -234,6 +231,8 @@ fn edit_params<'a, 'b>(subcommand: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
             .long("endpoint")
             .help("Endpoint address of a peer")
             .value_name("ADDRESS:PORT")
+            .validator(
+                |f| check_endpoint(f).map(|_| ()))
             .takes_value(true)
         )
         .arg(clap::Arg::with_name("dns")
@@ -242,6 +241,10 @@ fn edit_params<'a, 'b>(subcommand: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
             .help("DNS for a peer")
             .value_name("DNS_1,DNS_2")
             .use_delimiter(true)
+            .validator(|f| IpAddr::from_str(f.as_str())
+            .map(|_| ())
+            .map_err(|f|f.to_string())
+        )
             .takes_value(true)
         )
         .arg(clap::Arg::with_name("gateway")
@@ -333,6 +336,11 @@ fn main() {
                         .long("network")
                         .help("Network for peers to use")
                         .value_name("IP/MASK")
+                        .validator(|f| {
+                            IpNetwork::from_str(f.as_str())
+                                .map(|_| ())
+                                .map_err(|e| e.to_string())
+                        })
                         .default_value("10.0.0.0/24")
                         .use_delimiter(false)
                         .takes_value(true),
@@ -394,17 +402,18 @@ fn main() {
     fn command_remove(
         cfg: &mut configs::WireguardNetworkInfo,
         matches: &clap::ArgMatches,
-    ) -> Result<(), u8> {
-        let name = matches.value_of("name").ok_or(0)?;
-        let peer = cfg.peers.iter().position(|f| f.name == name).ok_or(1)?;
+    ) -> RVoid {
+        let name = matches.value_of("name").ok_or("".to_string())?;
+        let peer = cfg
+            .peers
+            .iter()
+            .position(|f| f.name == name)
+            .ok_or("".to_string())?;
         cfg.peers.remove(peer);
         Ok(())
     }
 
-    fn commands(
-        net: &mut configs::WireguardNetworkInfo,
-        args: &clap::ArgMatches,
-    ) -> Result<(), u8> {
+    fn commands(net: &mut configs::WireguardNetworkInfo, args: &clap::ArgMatches) -> RVoid {
         match args.subcommand() {
             ("add", Some(matches)) => command_new_peer(net, matches),
             ("list", Some(matches)) => command_list_peers(net, matches),
@@ -414,11 +423,11 @@ fn main() {
             ("qr", Some(matches)) => command_export(net, matches, QRConfig::write_config),
             ("rm", Some(matches)) => command_remove(net, matches),
             ("hosts", Some(_)) => {
-                println!("{}", export_hosts(net));
+                println!("{}", export_hosts(net)?);
                 Ok(())
             }
             ("nixops", Some(_)) => {
-                println!("{}", NixOpsConf::write_config(net, 0));
+                println!("{}", NixOpsConf::write_config(net)?);
                 Ok(())
             }
             _ => Ok(()),
@@ -429,7 +438,7 @@ fn main() {
         Ok(()) => {
             save_config(&net, cfg_file).unwrap();
         }
-        Err(e) => println!("Error occured ({})", e),
+        Err(e) => println!("{}", e),
     }
 }
 
