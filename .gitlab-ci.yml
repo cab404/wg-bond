@@ -1,6 +1,3 @@
-include:
-  template: Jobs/Code-Quality.gitlab-ci.yml
-
 test:cargo:
   image: "rust:latest"
 
