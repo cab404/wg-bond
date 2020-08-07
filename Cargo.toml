@@ -3,6 +3,8 @@ name = "wg-bond"
 version = "0.2.0"
 authors = ["Vladimir Serov <me@cab404.ru>"]
 edition = "2018"
+license = "GPL-3.0"
+description = "Wireguard configuration manager"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
