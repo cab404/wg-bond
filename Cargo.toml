@@ -5,6 +5,10 @@ authors = ["Vladimir Serov <me@cab404.ru>"]
 edition = "2018"
 license = "GPL-3.0"
 description = "Wireguard configuration manager"
+readme = "README.md"
+repository = "https://gitlab.com/cab404/wg-bond"
+homepage = "https://gitlab.com/cab404/wg-bond"
+keywords = [ "wireguard", "networking" ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
