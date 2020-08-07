@@ -1,6 +1,6 @@
 [package]
 name = "wg-bond"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Vladimir Serov <me@cab404.ru>"]
 edition = "2018"
 
