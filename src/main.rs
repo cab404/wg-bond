@@ -308,9 +308,14 @@ fn main() {
     // std::panic::set_hook(Box::new(panic_hook));
 
     let args = clap::App::new("wg-bond")
-        .version("0.1")
+        .version("0.2.1")
         .about("Wireguard configuration manager")
         .author("Vladimir Serov <cab404>")
+        .long_about(
+            "This program comes with ABSOLUTELY NO WARRANTY.
+This is free software, and you are welcome to redistribute it under certain conditions.
+For more information and source code visit https://gitlab.com/cab404/wg-bond.",
+        )
         .setting(SubcommandRequired)
         .arg(
             clap::Arg::with_name("config")
