@@ -13,7 +13,7 @@
       let
         pkgs = import nixpkgs { inherit system; };
         naersk-lib = pkgs.callPackage naersk {};
-      in {
+      in rec {
 
         defaultPackage = naersk-lib.buildPackage ./.;
 
@@ -22,5 +22,10 @@
           program = "${self.defaultPackage."${system}"}/bin/wg-bond";
         };
 
-      });
+        devShell = with pkgs; mkShell {
+          buildInputs = [ cargo rustc rustfmt pre-commit rustPackages.clippy ];
+          RUST_SRC_PATH = rustPlatform.rustLibSrc;
+        };
+
+    });
 }
