@@ -14,7 +14,7 @@ pub mod nix;
 pub mod nixops;
 pub mod qr;
 
-const GLOBAL_NET: &[&str; 30] = &[
+const GLOBAL_NET_V4: &[&str; 30] = &[
     "0.0.0.0/5",
     "8.0.0.0/7",
     "11.0.0.0/8",
@@ -46,6 +46,9 @@ const GLOBAL_NET: &[&str; 30] = &[
     "200.0.0.0/5",
     "208.0.0.0/4",
 ];
+
+// not yet sure :/
+const GLOBAL_NET_V6: &[&str; 1] = &["::/0"];
 
 /// Checks if endpoint is a valid ip or domain, and extracts port from it.
 /// ```
@@ -223,9 +226,19 @@ impl PeerFlag {
                 });
 
                 if *ignore_local_networks {
+                    let e: &[&str] = &[];
                     peer.allowed_ips.append(
-                        &mut GLOBAL_NET
-                            .iter()
+                        &mut empty()
+                            .chain(if has_ipv4 {
+                                GLOBAL_NET_V4.iter()
+                            } else {
+                                e.iter()
+                            })
+                            .chain(if has_ipv6 {
+                                GLOBAL_NET_V6.iter()
+                            } else {
+                                e.iter()
+                            })
                             .map(|a| IpNetwork::from_str(a).unwrap())
                             .collect(),
                     )
