@@ -4,11 +4,12 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "type": "cargo",
-            "subcommand": "run",
+            "type": "process",
+            "command": "run",
             "problemMatcher": [
                 "$rustc"
-            ]
+            ],
+            "label": "rust: cargo run"
         }
     ]
 }
