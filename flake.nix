@@ -25,6 +25,9 @@
         devShell = with pkgs; mkShell {
           buildInputs = [ cargo rustc rustfmt pre-commit rustPackages.clippy ];
           RUST_SRC_PATH = rustPlatform.rustLibSrc;
+          shellHook = ''
+            [ -e .git/hooks/pre-commit ] || pre-commit install --install-hooks
+          '';
         };
 
     });
