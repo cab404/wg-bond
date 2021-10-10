@@ -3,4 +3,4 @@
   repo = "flake-compat";
   rev = "12c64ca55c1014cdc1b16ed5a804aa8576601ff2";
   hash = "sha256-hY8g6H2KFL8ownSiFeMOjwPC8P0ueXpCVEbxgda3pko=";
-}) { src = ./.; })."shellNix"
+}) { src = ./.; })."defaultNix"
