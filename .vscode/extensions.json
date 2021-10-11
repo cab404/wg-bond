@@ -5,7 +5,7 @@
 	// List of extensions which should be recommended for users of this workspace.
 	"recommendations": [
 		"matklad.rust-analyzer",
-		"arrterian.nix-env-selector"
+		"cab404.vscode-direnv"
 	],
 	// List of extensions recommended by VS Code that should not be recommended for users of this workspace.
 	"unwantedRecommendations": [
