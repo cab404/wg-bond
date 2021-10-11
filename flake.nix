@@ -6,7 +6,9 @@
     naersk.url = "github:nmattia/naersk";
     fenix.url = "github:nix-community/fenix";
 
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    naersk.inputs.nixpkgs.follows = "fenix/nixpkgs";
+    nixpkgs.follows = "fenix/nixpkgs";
+
     utils.url = "github:numtide/flake-utils";
 
     flake-compat.url = "github:edolstra/flake-compat";
