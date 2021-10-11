@@ -3,18 +3,40 @@
   description = "Wireguard configuration manager";
 
   inputs = {
-    naersk.url = "github:nmattia/naersk/master";
+    naersk.url = "github:nmattia/naersk";
+    fenix.url = "github:nix-community/fenix";
+
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     utils.url = "github:numtide/flake-utils";
+
+    flake-compat.url = "github:edolstra/flake-compat";
+    flake-compat.flake = false;
   };
 
-  outputs = { self, nixpkgs, utils, naersk }:
+  outputs = args@{ self, nixpkgs, utils, fenix, naersk, ... }:
     utils.lib.eachDefaultSystem (system:
       let
-        pkgs = import nixpkgs { inherit system; };
-        naersk-lib = pkgs.callPackage naersk {};
-      in rec {
+        compat = attr: ''
+          (import (with import ${nixpkgs} {}; fetchFromGitHub {
+            owner = "edolstra";
+            repo = "flake-compat";
+            rev = "${args.flake-compat.rev}";
+            hash = "${args.flake-compat.narHash}";
+          }) { src = ./.; })."${attr}"
+        '';
 
+        pkgs = import nixpkgs { inherit system; };
+        fenixArch = fenix.packages.${system};
+
+        rustChannel = fenixArch.stable;
+        rustToolchain = rustChannel.withComponents [ "cargo" "clippy" "rust-src" "rust-std" "rustc" "rustfmt" ];
+        naersk-lib = naersk.lib.${system}.override {
+          cargo = rustToolchain;
+          rustc = rustToolchain;
+        };
+
+      in rec {
+        inherit rustToolchain;
         defaultPackage = naersk-lib.buildPackage ./.;
 
         defaultApp = {
@@ -23,8 +45,18 @@
         };
 
         devShell = with pkgs; mkShell {
-          buildInputs = [ cargo rustc rustfmt pre-commit rustPackages.clippy ];
-          RUST_SRC_PATH = rustPlatform.rustLibSrc;
+          buildInputs = [ rustToolchain pre-commit
+            (writeScriptBin "reinstall_compat" ''
+              cat > default.nix << a-meaning-of-life
+              ${compat "defaultNix"}a-meaning-of-life
+
+              cat > shell.nix << mowmowimmacow
+              ${compat "shellNix"}mowmowimmacow
+
+              git add default.nix shell.nix
+              git commit default.nix shell.nix -m "env: bumped flake-compat"
+            '')
+          ];
           shellHook = ''
             [ -e .git/hooks/pre-commit ] || pre-commit install --install-hooks
           '';
