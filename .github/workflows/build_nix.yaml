@@ -1,8 +1,5 @@
 name: "Build legacy Nix package on Ubuntu"
 
-on:
-  push:
-
 strategy:
   matrix:
     os:
