@@ -31,7 +31,7 @@
 
         naersk-lib = naersk.lib.${system}.override platformParams;
         rustPlatform = pkgs.makeRustPlatform platformParams;
-        staticRustPlatform = pkgs.pkgsMusl.makeRustPlatform platformParams;
+        staticRustPlatform = pkgs.pkgsStatic.makeRustPlatform platformParams;
 
         rustPlatformBuild = platform: platform.buildRustPackage {
           inherit (self.defaultPackage."${system}") name;
