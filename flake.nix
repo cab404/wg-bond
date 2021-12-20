@@ -24,18 +24,42 @@
 
         rustChannel = fenixArch.stable;
         rustToolchain = rustChannel.withComponents [ "cargo" "clippy" "rust-src" "rust-std" "rustc" "rustfmt" ];
-        naersk-lib = naersk.lib.${system}.override {
+        platformParams = {
           cargo = rustToolchain;
           rustc = rustToolchain;
+        };
+
+        naersk-lib = naersk.lib.${system}.override platformParams;
+        rustPlatform = pkgs.makeRustPlatform platformParams;
+        staticRustPlatform = pkgs.pkgsMusl.makeRustPlatform platformParams;
+
+        rustPlatformBuild = platform: platform.buildRustPackage {
+          inherit (self.defaultPackage."${system}") name;
+          src = ./.;
+          cargoLock = { lockFile = ./Cargo.lock; };
         };
 
       in rec {
         inherit rustToolchain;
         defaultPackage = naersk-lib.buildPackage ./.;
 
+        checks = {
+          # For nixpkgs compatibility
+          rustPlatformCheck = rustPlatformBuild staticRustPlatform;
+        };
+
         defaultApp = {
           type = "app";
           program = "${self.defaultPackage."${system}"}/bin/wg-bond";
+        };
+
+        packages = {
+          staticApp = staticRustPlatform.buildRustPackage {
+            inherit (self.defaultPackage."${system}") name;
+            src = ./.;
+            cargoLock = { lockFile = ./Cargo.lock; };
+          };
+
         };
 
         devShell = with pkgs; mkShell {
