@@ -1,5 +1,9 @@
 name: "Build legacy Nix package on Ubuntu"
 
+on:
+  push:
+  pull_request:
+
 strategy:
   matrix:
     os:
