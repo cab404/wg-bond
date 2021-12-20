@@ -54,13 +54,10 @@
         };
 
         packages = {
-          staticApp = staticRustPlatform.buildRustPackage {
-            inherit (self.defaultPackage."${system}") name;
-            src = ./.;
-            cargoLock = { lockFile = ./Cargo.lock; };
-          };
-
-        };
+          wg-bond = self.defaultPackage."${system}";
+        } // (pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
+          wg-bond-static = rustPlatformBuild staticRustPlatform;
+        });
 
         devShell = with pkgs; mkShell {
           buildInputs = [ rustToolchain pre-commit ];
