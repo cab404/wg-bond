@@ -45,7 +45,7 @@
 
         checks = {
           # For nixpkgs compatibility
-          rustPlatformCheck = rustPlatformBuild staticRustPlatform;
+          rustPlatformCheck = rustPlatformBuild rustPlatform;
         };
 
         defaultApp = {
