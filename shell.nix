@@ -1,6 +1,12 @@
-(import (with import /nix/store/a6gaflr2x5if3xkidxpc3qd125ih0v3l-source {}; fetchFromGitHub {
-  owner = "edolstra";
-  repo = "flake-compat";
-  rev = "12c64ca55c1014cdc1b16ed5a804aa8576601ff2";
-  hash = "sha256-hY8g6H2KFL8ownSiFeMOjwPC8P0ueXpCVEbxgda3pko=";
-}) { src = ./.; })."shellNix"
+let
+  lock = builtins.fromJSON (builtins.readFile ./flake.lock);
+  locked = lock.nodes.flake-compat.locked;
+  flake-compat = fetchTarball {
+    url = "https://github.com/edolstra/flake-compat/archive/${locked.rev}.tar.gz";
+    sha256 = locked.narHash;
+  };
+  flake = import flake-compat {
+    src = ./.;
+  };
+in
+flake.shellNix
