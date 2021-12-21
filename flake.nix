@@ -3,10 +3,7 @@
   description = "Wireguard configuration manager";
 
   inputs = {
-    naersk.url = "github:nix-community/naersk";
     fenix.url = "github:nix-community/fenix";
-
-    naersk.inputs.nixpkgs.follows = "fenix/nixpkgs";
     nixpkgs.follows = "fenix/nixpkgs";
 
     utils.url = "github:numtide/flake-utils";
@@ -16,32 +13,53 @@
 
   };
 
-  outputs = args@{ self, nixpkgs, utils, fenix, naersk, ... }:
+  outputs = args@{ self, nixpkgs, utils, fenix, ... }:
     utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
         fenixArch = fenix.packages.${system};
 
-        rustChannel = fenixArch.stable;
-        rustToolchain = rustChannel.withComponents [ "cargo" "clippy" "rust-src" "rust-std" "rustc" "rustfmt" ];
+        rustChannel = fenixArch.latest;
+        rustDevToolchain = rustChannel.withComponents [ "cargo" "clippy" "rust-src" "rust-std" "rustc" "rustfmt" ];
+        rustToolchain = rustChannel.withComponents [ "cargo" "rust-std" "rustc" ];
+
         platformParams = {
           cargo = rustToolchain;
           rustc = rustToolchain;
         };
-
-        naersk-lib = naersk.lib.${system}.override platformParams;
         rustPlatform = pkgs.makeRustPlatform platformParams;
-        staticRustPlatform = pkgs.pkgsStatic.makeRustPlatform platformParams;
+
+        # why not? maybe you want to run this on a mips router?
+        getVersionFromTarget = target: target.latest.toolchain;
+        fenixStaticPlatforms = let
+          filteredPlatforms = with builtins; filter (s: match ".*-musl" s != null) (attrNames fenixArch.targets);
+          kvPlatforms = map (k: nixpkgs.lib.nameValuePair k (getVersionFromTarget fenixArch.targets.${k})) (filteredPlatforms);
+        in
+          builtins.listToAttrs kvPlatforms;
+
+
+        staticTargets = builtins.mapAttrs (platformName: toolchain:
+          let
+            rustToolchainMusl = toolchain;
+            buildStatic = builtins.hasAttr system fenixStaticPlatforms;
+            staticPlatformParams = {
+              cargo = rustToolchain;
+              rustc = rustToolchainMusl;
+            };
+            staticRustPlatform = pkgs.makeRustPlatform staticPlatformParams;
+          in
+            rustPlatformBuild staticRustPlatform
+        ) fenixStaticPlatforms;
+
 
         rustPlatformBuild = platform: platform.buildRustPackage {
-          inherit (self.defaultPackage."${system}") name;
+          name = "wg-bond";
           src = ./.;
           cargoLock = { lockFile = ./Cargo.lock; };
         };
 
       in rec {
-        inherit rustToolchain;
-        defaultPackage = naersk-lib.buildPackage ./.;
+        defaultPackage = rustPlatformBuild rustPlatform;
 
         checks = {
           # For nixpkgs compatibility
@@ -55,9 +73,7 @@
 
         packages = {
           wg-bond = self.defaultPackage."${system}";
-        } // (pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
-          wg-bond-static = rustPlatformBuild staticRustPlatform;
-        });
+        } // (staticTargets);
 
         devShell = with pkgs; mkShell {
           buildInputs = [ rustToolchain pre-commit ];
