@@ -76,7 +76,7 @@
         } // (staticTargets);
 
         devShell = with pkgs; mkShell {
-          buildInputs = [ rustToolchain pre-commit ];
+          buildInputs = [ rustDevToolchain pre-commit ];
           shellHook = ''
             [ -e .git/hooks/pre-commit ] || pre-commit install --install-hooks
           '';
