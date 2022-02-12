@@ -1,0 +1,42 @@
+name: "Nix CI"
+
+on:
+  push:
+  pull_request:
+
+
+jobs:
+
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/install-nix-action@v16
+      - uses: cachix/cachix-action@v10
+        with:
+          name: wg-bond
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+      - name: Building default package
+        run: nix build .
+
+  check:
+    # we'll manage to fix it sometime later
+    if: false
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/install-nix-action@v16
+      - name: Running checks
+        run: nix flake check .
