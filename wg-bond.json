@@ -1,96 +1,16 @@
 {
   "name": "ooof",
-  "flags": [
-    "Centralized"
-  ],
+  "flags": [],
   "networks": [
-    "10.0.0.0/24",
-    "fe80:c4b4::/48"
+    "10.0.0.0/24"
   ],
   "peers": [
     {
       "name": "cab",
-      "private_key": "sNOX09z3U0RQIe8v3uxtcwwBlEx4e8ZgMkTmBC3MDnw=",
+      "private_key": "eKVXLS+mrHbH7cFRjllHG/7SqtUeTGLT+uJ59kSHmXw=",
       "id": 1,
-      "flags": [
-        "Center",
-        "NixOpsMachine"
-      ],
-      "endpoint": null
-    },
-    {
-      "name": "cab",
-      "private_key": "wMz/fl1DQrky6qt1BWn3w9fLeY6/gDkzZhcUIOqNC0c=",
-      "id": 2,
       "flags": [],
       "endpoint": null
-    },
-    {
-      "name": "test",
-      "private_key": "0AoQ4wPEDtGipzaRk194Ht/Kyp7Yxge8gv4Mk/z6zmE=",
-      "id": 3,
-      "flags": [
-        {
-          "Keepalive": {
-            "keepalive": 12
-          }
-        },
-        "NixOpsMachine"
-      ],
-      "endpoint": null
-    },
-    {
-      "name": "test",
-      "private_key": "UAUd0p5LaFsl4msJ9smC74VeEVN9yjZ7ujLENME7KUk=",
-      "id": 4,
-      "flags": [],
-      "endpoint": null
-    },
-    {
-      "name": "test",
-      "private_key": "2P7eLX9P+OksN6HY8FdlyQ99tta3+KpqU5NV47YUIXY=",
-      "id": 5,
-      "flags": [
-        "NixOpsMachine"
-      ],
-      "endpoint": null
-    },
-    {
-      "name": "test",
-      "private_key": "uK0ilLxcrwulHIwb+XWaqvWS+kDX0NVFM57uLMBJ73A=",
-      "id": 6,
-      "flags": [
-        "NixOpsMachine"
-      ],
-      "endpoint": "2.2.2.2:4444"
-    },
-    {
-      "name": "test",
-      "private_key": "8GfmUWiHlyUHI9RQnuNzbrc26r1xb9nUFGvysWZPxlc=",
-      "id": 7,
-      "flags": [],
-      "endpoint": "91.77.168.186:4444"
-    },
-    {
-      "name": "test",
-      "private_key": "GGRyyGSW4lJKf6eFTR4eM4CY6JSW2+HTO6OvqHclLXo=",
-      "id": 8,
-      "flags": [],
-      "endpoint": "91.77.168.186:4444"
-    },
-    {
-      "name": "test",
-      "private_key": "QHpFzTWl9n+3rYJCFaBBR5eDIcSHz26wrTFpOUuYc0E=",
-      "id": 9,
-      "flags": [],
-      "endpoint": "91.77.168.186:4444"
-    },
-    {
-      "name": "test",
-      "private_key": "uCdcC1MbXzw93APC8Ryqqlx2Q0YuPO/PKD3OSKVCEVs=",
-      "id": 10,
-      "flags": [],
-      "endpoint": "cab404.ru:4444"
     }
   ]
 }

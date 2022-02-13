@@ -42,7 +42,9 @@ impl WGConfBuilder for String {
 pub struct ConfFile {}
 
 impl ConfigType for ConfFile {
-    fn write_config(config: WireguardConfiguration) -> String {
+    type ExportConfig = ();
+
+    fn write_config(config: WireguardConfiguration, _: ()) -> String {
         let interface = config.interface;
 
         let mut built = String::new();

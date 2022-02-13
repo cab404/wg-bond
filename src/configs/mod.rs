@@ -140,12 +140,25 @@ pub struct Peer {
     pub endpoint: Option<String>,
     pub persistent_keepalive: Option<u16>,
 }
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ProxyConfig {
+    /// Which networks to proxy
+    pub networks: Vec<IpNetwork>,
+    /// Whether to proxy whole internet, except [local networks](http://link-to-wikipedia-list)
+    /// Useful on mobile devices. Can be redundant.
+    /// See also [`GLOBAL_NET_V4`] and [`GLOBAL_NET_V6`]
+    pub use_global_networks: bool,
+    /// Whether to allow to connect to whole internet
+    pub proxy_internet: bool,
+}
 
 // Describes emergent features of peers, not set by one flag.
 #[derive(Serialize, Deserialize, Debug, AsRefStr, Clone)]
 pub enum PeerFlag {
     Masquerade { interface: String },
     Gateway { ignore_local_networks: bool },
+    UseGateway { peer: u128, proxy: ProxyConfig },
+    Segment { mask: u128 },
     Keepalive { keepalive: u16 },
     DNS { addresses: Vec<IpAddr> },
     NixOpsMachine,
@@ -206,24 +219,15 @@ impl PeerFlag {
     }
 
     fn apply_to_peer(&self, network: &WireguardNetworkInfo, peer: &mut Peer) {
-        match self {
-            PeerFlag::Gateway {
+        match &self {
+            &PeerFlag::UseGateway { proxy, peer } => {
+                let target_peer = network.by_id(*peer).unwrap();
+            }
+            &PeerFlag::Gateway {
                 ignore_local_networks,
             } => {
-                let has_ipv4 = network.networks.iter().any(|f| {
-                    if let IpNetwork::V4(_) = f {
-                        true
-                    } else {
-                        false
-                    }
-                });
-                let has_ipv6 = network.networks.iter().any(|f| {
-                    if let IpNetwork::V6(_) = f {
-                        true
-                    } else {
-                        false
-                    }
-                });
+                let has_ipv4 = network.networks.iter().any(IpNetwork::is_ipv4);
+                let has_ipv6 = network.networks.iter().any(IpNetwork::is_ipv6);
 
                 if *ignore_local_networks {
                     let e: &[&str] = &[];
@@ -254,7 +258,7 @@ impl PeerFlag {
                     }
                 }
             }
-            PeerFlag::Center => {
+            &PeerFlag::Center => {
                 for network in network.networks.iter().rev() {
                     peer.allowed_ips.insert(0, *network)
                 }
@@ -337,6 +341,16 @@ pub enum NetworkFlag {
     // TODO: Add symmetric keys overlay
 }
 
+/// Searches for an item matching given pattern
+macro_rules! find_pattern {
+    ($self:expr => $pat:pat) => {
+        $self.iter().find(|t| match t {
+            $pat => true,
+            _ => false,
+        })
+    };
+}
+
 impl WireguardNetworkInfo {
     pub fn map_to_peer(&self, info: &PeerInfo) -> Result<Peer, String> {
         let mut peer = info.derive_peer()?;
@@ -367,6 +381,7 @@ impl WireguardNetworkInfo {
         Ok(interface)
     }
 
+    /// Returns a list of peers for configuration of a given peer
     pub fn peer_list(&self, info: &PeerInfo) -> Vec<&PeerInfo> {
         let others = || {
             self.peers
@@ -374,6 +389,20 @@ impl WireguardNetworkInfo {
                 .filter(|peer| peer.id != info.id)
                 .collect::<Vec<_>>()
         };
+
+        if let Some(&PeerFlag::UseGateway { peer, .. }) =
+            find_pattern!(info.flags => PeerFlag::UseGateway { .. })
+        {
+            // in this case we only need a gateway
+            let gateway = self.by_id(peer).expect(
+                format!(
+                    "UseGateway flag on #{} points to nonexistent peer #{}!",
+                    info.id, peer
+                )
+                .as_str(),
+            );
+            return vec![gateway];
+        }
 
         if self.has_flag("Centralized") {
             if info.has_flag("Center") {
@@ -415,6 +444,10 @@ impl WireguardNetworkInfo {
         self.peers.iter().find(|f| f.name == *name)
     }
 
+    pub fn by_id(&self, id: u128) -> Option<&PeerInfo> {
+        self.peers.iter().find(|f| f.id == id)
+    }
+
     pub fn has_flag(&self, flag_name: &str) -> bool {
         self.flags.iter().any(|f| f.as_ref() == flag_name)
     }
@@ -444,10 +477,9 @@ pub fn get_network_address(net: IpNetwork, num: u128) -> IpAddr {
     }
 }
 
-pub type ConfigWriter = fn(net: WireguardConfiguration) -> String;
-
 pub trait ConfigType {
+    type ExportConfig;
     // let config = net.get_configuration(my_peer);
     // let interface = net.map_to_interface(my_peer);
-    fn write_config(net: WireguardConfiguration) -> String;
+    fn write_config(net: WireguardConfiguration, options: Self::ExportConfig) -> String;
 }

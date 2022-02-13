@@ -5,7 +5,8 @@ extern crate serde;
 extern crate serde_json;
 
 use crate::configs::check_endpoint;
-use crate::configs::{ConfigType, ConfigWriter};
+use crate::configs::nix::KeyFileExportConfig;
+use crate::configs::ConfigType;
 use clap::AppSettings::SubcommandRequired;
 use ipnetwork::IpNetwork;
 use std::net::IpAddr;
@@ -189,10 +190,10 @@ fn command_edit_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Ar
     Ok(())
 }
 
-fn command_export(
+fn command_export<C: ConfigType>(
     cfg: &configs::WireguardNetworkInfo,
     matches: &clap::ArgMatches,
-    exporter: ConfigWriter,
+    export_options: C::ExportConfig,
 ) -> RVoid {
     let name: String = matches.value_of("name").unwrap().into();
     let peer = cfg.by_name(&name).ok_or("No peer found with this name.")?;
@@ -220,64 +221,67 @@ fn command_export(
         };
     };
 
-    println!("{}", exporter(newcfg.get_configuration(peer)?));
+    println!(
+        "{}",
+        C::write_config(newcfg.get_configuration(peer)?, export_options)
+    );
     Ok(())
 }
 
-fn edit_params<'a, 'b>(subcommand: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
+fn edit_params<'a>(subcommand: clap::App<'a>) -> clap::App<'a> {
     subcommand
-        .arg(clap::Arg::with_name("endpoint")
-            .short("e")
+    .arg(clap::Arg::new("endpoint")
+            .short('e')
             .long("endpoint")
             .help("Endpoint address of a peer")
             .value_name("ADDRESS:PORT")
             .validator(
-                |f| check_endpoint(f).map(|_| ()))
+                |f| check_endpoint(f.to_string()).map(|_| ()))
             .takes_value(true)
         )
-        .arg(clap::Arg::with_name("dns")
-            .short("d")
+        .arg(clap::Arg::new("dns")
+            .short('d')
             .long("dns")
             .help("DNS for a peer")
             .value_name("DNS_1,DNS_2")
             .use_delimiter(true)
-            .validator(|f| IpAddr::from_str(f.as_str())
+            .validator(|f| IpAddr::from_str(f)
             .map(|_| ())
             .map_err(|f|f.to_string())
         )
             .takes_value(true)
         )
-        .arg(clap::Arg::with_name("gateway")
-            .short("G")
+        .arg(clap::Arg::new("gateway")
+            .short('G')
             .long("gateway")
             .help("Whether this peer is a gateway. You may also need -M.")
             .takes_value(false)
         )
-        .arg(clap::Arg::with_name("nixops")
-            .short("N")
+        .arg(clap::Arg::new("nixops")
+            .short('N')
             .long("nixops")
             .help("Whether this peer is a NixOps machine, and should be added to a NixOps export.")
             .takes_value(false)
         )
-        .arg(clap::Arg::with_name("center")
-            .short("C")
+        .arg(clap::Arg::new("center")
+            .short('C')
             .long("center")
             .help("Whether this peer is to be used as connection point for other peers.")
             .takes_value(false)
         )
-        .arg(clap::Arg::with_name("masquerade")
-            .short("M")
+        .arg(clap::Arg::new("masquerade")
+            .short('M')
             .long("masquerade")
             .help("Whether to enable iptables masquerade on this peer.")
             .takes_value(true)
             .value_name("INTERFACE")
         )
-        .arg(clap::Arg::with_name("keepalive")
-            .short("K")
+        .arg(clap::Arg::new("keepalive")
+            .short('K')
             .long("keepalive")
             .help("Keepalive interval of a host")
             .validator(|v|
-                match u16::from_str(v.as_str()) {
+                match u16::from_str(v) {
                     Ok(_) => Ok(()),
                     Err(_) => Err("Not a number.".to_string()),
                 }
@@ -287,16 +291,16 @@ fn edit_params<'a, 'b>(subcommand: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
         )
 }
 
-fn export_params<'a, 'b>(subcommand: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
+fn export_params<'a>(subcommand: clap::App<'a>) -> clap::App<'a> {
     subcommand
         .arg(
-            clap::Arg::with_name("name")
+            clap::Arg::new("name")
                 .help("Name of a new peer")
                 .required(true),
         )
         .arg(
-            clap::Arg::with_name("tunnel")
-                .short("T")
+            clap::Arg::new("tunnel")
+                .short('T')
                 .help("Whether to remove all peers from resulting config except a gateway")
                 .takes_value(true)
                 .value_name("GATEWAY NAME"),
@@ -318,31 +322,26 @@ For more information and source code visit https://gitlab.com/cab404/wg-bond.",
         )
         .setting(SubcommandRequired)
         .arg(
-            clap::Arg::with_name("config")
-                .short("c")
+            clap::Arg::new("config")
+                .short('c')
                 .long("config")
                 .help("Config file to use")
                 .value_name("FILE")
-                .default_value("wg-bond.json")
                 .takes_value(true)
                 .use_delimiter(false),
         )
         .subcommand(
-            clap::SubCommand::with_name("init")
+            clap::App::new("init")
                 .about("Initializes a config file")
+                .arg(clap::Arg::new("name").help("Network name").required(true))
                 .arg(
-                    clap::Arg::with_name("name")
-                        .help("Network name")
-                        .required(true),
-                )
-                .arg(
-                    clap::Arg::with_name("network")
-                        .short("n")
+                    clap::Arg::new("network")
+                        .short('n')
                         .long("network")
                         .help("Network for peers to use")
                         .value_name("IP/MASK")
                         .validator(|f| {
-                            IpNetwork::from_str(f.as_str())
+                            IpNetwork::from_str(f)
                                 .map(|_| ())
                                 .map_err(|e| e.to_string())
                         })
@@ -352,48 +351,36 @@ For more information and source code visit https://gitlab.com/cab404/wg-bond.",
                 ),
         )
         .subcommand(
-            edit_params(clap::SubCommand::with_name("add"))
+            edit_params(clap::App::new("add"))
                 .about("Adds a new peer to the network")
                 .arg(
-                    clap::Arg::with_name("name")
+                    clap::Arg::new("name")
                         .help("Name for a new peer")
                         .required(true),
                 ),
         )
-        .subcommand(clap::SubCommand::with_name("list").about("Lists all added peers"))
+        .subcommand(clap::App::new("list").about("Lists all added peers"))
         .subcommand(
-            edit_params(clap::SubCommand::with_name("edit"))
+            edit_params(clap::App::new("edit"))
                 .about("Edits existing peer")
                 .arg(
-                    clap::Arg::with_name("name")
+                    clap::Arg::new("name")
                         .help("Name of a new peer")
                         .required(true),
                 ),
         )
+        .subcommand(export_params(clap::App::new("nix")).about("Generates Nix configs"))
+        .subcommand(clap::App::new("nixops").about("Generates NixOps config for all peers"))
+        .subcommand(clap::App::new("hosts").about("Generates /etc/hosts for all peers"))
         .subcommand(
-            export_params(clap::SubCommand::with_name("nix")).about("Generates Nix configs"),
+            clap::App::new("rm").about("Deletes a peer").arg(
+                clap::Arg::new("name")
+                    .help("Name of a new peer")
+                    .required(true),
+            ),
         )
-        .subcommand(
-            clap::SubCommand::with_name("nixops").about("Generates NixOps config for all peers"),
-        )
-        .subcommand(
-            clap::SubCommand::with_name("hosts").about("Generates /etc/hosts for all peers"),
-        )
-        .subcommand(
-            clap::SubCommand::with_name("rm")
-                .about("Deletes a peer")
-                .arg(
-                    clap::Arg::with_name("name")
-                        .help("Name of a new peer")
-                        .required(true),
-                ),
-        )
-        .subcommand(
-            export_params(clap::SubCommand::with_name("qr")).about("Generates QR code with config"),
-        )
-        .subcommand(
-            export_params(clap::SubCommand::with_name("conf")).about("Generates wg-quick configs"),
-        )
+        .subcommand(export_params(clap::App::new("qr")).about("Generates QR code with config"))
+        .subcommand(export_params(clap::App::new("conf")).about("Generates wg-quick configs"))
         .get_matches();
 
     let cfg_file = args.value_of("config").unwrap();
@@ -420,19 +407,33 @@ For more information and source code visit https://gitlab.com/cab404/wg-bond.",
 
     fn commands(net: &mut configs::WireguardNetworkInfo, args: &clap::ArgMatches) -> RVoid {
         match args.subcommand() {
-            ("add", Some(matches)) => command_new_peer(net, matches),
-            ("list", Some(matches)) => command_list_peers(net, matches),
-            ("edit", Some(matches)) => command_edit_peer(net, matches),
-            ("nix", Some(matches)) => command_export(net, matches, NixConf::write_config),
-            ("conf", Some(matches)) => command_export(net, matches, ConfFile::write_config),
-            ("qr", Some(matches)) => command_export(net, matches, QRConfig::write_config),
-            ("rm", Some(matches)) => command_remove(net, matches),
-            ("hosts", Some(_)) => {
+            Some(("add", matches)) => command_new_peer(net, matches),
+            Some(("list", matches)) => command_list_peers(net, matches),
+            Some(("edit", matches)) => command_edit_peer(net, matches),
+            Some(("nix", matches)) => command_export::<NixConf>(
+                net,
+                matches,
+                configs::nix::NixExportConfig {
+                    use_keyfile: Some(KeyFileExportConfig {
+                        target_prefix: "mowmow".into(),
+                    }),
+                },
+            ),
+            Some(("conf", matches)) => command_export::<ConfFile>(net, matches, ()),
+            Some(("qr", matches)) => command_export::<QRConfig>(net, matches, ()),
+            Some(("rm", matches)) => command_remove(net, matches),
+            Some(("hosts", _)) => {
                 println!("{}", export_hosts(net)?);
                 Ok(())
             }
-            ("nixops", Some(_)) => {
-                println!("{}", NixOpsConf::write_config(net)?);
+            Some(("nixops", _)) => {
+                println!(
+                    "{}",
+                    NixOpsConf::write_config(
+                        net,
+                        configs::nix::NixExportConfig { use_keyfile: None }
+                    )?
+                );
                 Ok(())
             }
             _ => Ok(()),

@@ -10,8 +10,10 @@ use qrcode::QrCode;
 pub struct QRConfig {}
 
 impl ConfigType for QRConfig {
-    fn write_config(net: WireguardConfiguration) -> String {
-        let cfg = conf::ConfFile::write_config(net);
+    type ExportConfig = ();
+
+    fn write_config(net: WireguardConfiguration, export_options: ()) -> String {
+        let cfg = conf::ConfFile::write_config(net, ());
         QrCode::new(&cfg)
             .unwrap()
             .render::<unicode::Dense1x2>()

@@ -13,7 +13,7 @@
       devShell = onPkgs (_: pkgs:
         with pkgs;
         mkShell {
-          buildInputs = [ pre-commit nixpkgs-fmt cargo rustc ];
+          buildInputs = [ pre-commit nixpkgs-fmt cargo rustc clippy rustfmt ];
           RUST_SRC_PATH=rustPlatform.rustLibSrc;
           shellHook = ''
             [ -e .git/hooks/pre-commit ] || pre-commit install --install-hooks

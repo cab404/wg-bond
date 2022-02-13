@@ -5,8 +5,22 @@ use crate::configs::*;
 
 pub struct NixConf {}
 
+#[derive(Debug, Clone)]
+
+pub struct KeyFileExportConfig {
+    /// What directory to use while exporting keyfiles
+    pub target_prefix: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct NixExportConfig {
+    pub use_keyfile: Option<KeyFileExportConfig>,
+}
+
 impl ConfigType for NixConf {
-    fn write_config(config: WireguardConfiguration) -> String {
+    type ExportConfig = NixExportConfig;
+
+    fn write_config(config: WireguardConfiguration, export_options: NixExportConfig) -> String {
         let interface = config.interface;
 
         fn set_assign(key: &str, value: &Option<impl core::fmt::Display>) -> String {
@@ -25,7 +39,12 @@ impl ConfigType for NixConf {
 
         let mut built = String::new();
         built += format!("networking.wg-quick.interfaces.\"{}\"={{", &config.name).as_str();
-        built += format!("privateKey=\"{}\";", &interface.private_key).as_str();
+
+        if let Some(KeyFileExportConfig { target_prefix }) = export_options.use_keyfile {
+            built += format!("privateKeyFile=\"{}/{}\";", target_prefix, &config.name).as_str();
+        } else {
+            built += format!("privateKey=\"{}\";", &interface.private_key).as_str();
+        }
 
         built += set_assign_raw("listenPort", &interface.port).as_str();
 

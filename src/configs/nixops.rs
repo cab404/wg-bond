@@ -1,10 +1,17 @@
 use crate::configs::nix::NixConf;
 use crate::configs::*;
 
+use super::nix::NixExportConfig;
+
 pub struct NixOpsConf {}
 
+pub struct NixOpsExportConfig {}
+
 impl NixOpsConf {
-    pub fn write_config(net: &WireguardNetworkInfo) -> Result<String, String> {
+    pub fn write_config(
+        net: &WireguardNetworkInfo,
+        export_options: NixExportConfig,
+    ) -> Result<String, String> {
         // TODO: Don't just ignore id, and make write_config accept ArgMatches instead
         let mut built = String::new();
 
@@ -22,7 +29,8 @@ impl NixOpsConf {
             built += "\"";
             built += peer.name.as_str();
             built += "\".";
-            built += NixConf::write_config(net.get_configuration(peer)?).as_str();
+            built += NixConf::write_config(net.get_configuration(peer)?, export_options.clone())
+                .as_str();
         }
 
         built += "}\n";
