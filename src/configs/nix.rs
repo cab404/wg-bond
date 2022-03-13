@@ -41,7 +41,11 @@ impl ConfigType for NixConf {
         built += format!("networking.wg-quick.interfaces.\"{}\"={{", &config.name).as_str();
 
         if let Some(KeyFileExportConfig { target_prefix }) = export_options.use_keyfile {
-            built += format!("privateKeyFile=\"{}/{}\";", target_prefix, &config.name).as_str();
+            built += format!(
+                "privateKeyFile=\"{}/wg-{}.ed25519.base64\";",
+                target_prefix, &config.name
+            )
+            .as_str();
         } else {
             built += format!("privateKey=\"{}\";", &interface.private_key).as_str();
         }

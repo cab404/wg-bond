@@ -9,12 +9,13 @@ use crate::configs::nix::KeyFileExportConfig;
 use crate::configs::ConfigType;
 use clap::AppSettings::SubcommandRequired;
 use ipnetwork::IpNetwork;
+use std::io::Write;
 use std::net::IpAddr;
 use std::str::FromStr;
 
 use configs::conf::ConfFile;
 use configs::nix::NixConf;
-use configs::nixops::NixOpsConf;
+use configs::nixops;
 use configs::{hosts::export_hosts, qr::QRConfig};
 
 use clap;
@@ -228,6 +229,25 @@ fn command_export<C: ConfigType>(
     Ok(())
 }
 
+fn command_export_secrets(
+    cfg: &configs::WireguardNetworkInfo,
+    matches: &clap::ArgMatches,
+) -> std::io::Result<()> {
+    let export_dir = matches.value_of("target").expect("no panik");
+    for peer in &cfg.peers {
+        std::fs::create_dir_all(format!("{}/{}", export_dir, peer.name))?;
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(format!(
+                "{}/{}/wg-{}.ed25519.base64",
+                export_dir, peer.name, cfg.name
+            ))?;
+        f.write(peer.private_key.clone().as_bytes())?;
+    }
+    Ok(())
+}
+
 fn edit_params<'a>(subcommand: clap::App<'a>) -> clap::App<'a> {
     subcommand
     .arg(clap::Arg::new("endpoint")
@@ -312,14 +332,10 @@ fn main() {
     // std::panic::set_hook(Box::new(panic_hook));
 
     let args = clap::App::new("wg-bond")
-        .version("0.2.1")
+        .version("0.3.0")
         .about("Wireguard configuration manager")
         .author("Vladimir Serov <cab404>")
-        .long_about(
-            "This program comes with ABSOLUTELY NO WARRANTY.
-This is free software, and you are welcome to redistribute it under certain conditions.
-For more information and source code visit https://gitlab.com/cab404/wg-bond.",
-        )
+        .long_about("Wireguard configuration manager.\nSources: https://gitlab.com/cab404/wg-bond.")
         .setting(SubcommandRequired)
         .arg(
             clap::Arg::new("config")
@@ -327,6 +343,7 @@ For more information and source code visit https://gitlab.com/cab404/wg-bond.",
                 .long("config")
                 .help("Config file to use")
                 .value_name("FILE")
+                .default_value("./wg-bond.json")
                 .takes_value(true)
                 .use_delimiter(false),
         )
@@ -369,8 +386,28 @@ For more information and source code visit https://gitlab.com/cab404/wg-bond.",
                         .required(true),
                 ),
         )
-        .subcommand(export_params(clap::App::new("nix")).about("Generates Nix configs"))
+        .subcommand(
+            export_params(clap::App::new("nix"))
+                .arg(
+                    clap::Arg::new("separate-secrets")
+                    .long("separate-secrets")
+                    .takes_value(false)
+                    .help(
+                        "Whether to use external secrets, to avoid putting secrets in the store",
+                    ),
+                )
+                .about("Generates Nix configs"),
+        )
         .subcommand(clap::App::new("nixops").about("Generates NixOps config for all peers"))
+        .subcommand(
+            clap::App::new("secrets")
+                .about("Generates secret files for all peers")
+                .arg(
+                    clap::Arg::new("target")
+                        .help("Where to export the secrets")
+                        .default_value("./secrets"),
+                ),
+        )
         .subcommand(clap::App::new("hosts").about("Generates /etc/hosts for all peers"))
         .subcommand(
             clap::App::new("rm").about("Deletes a peer").arg(
@@ -410,15 +447,18 @@ For more information and source code visit https://gitlab.com/cab404/wg-bond.",
             Some(("add", matches)) => command_new_peer(net, matches),
             Some(("list", matches)) => command_list_peers(net, matches),
             Some(("edit", matches)) => command_edit_peer(net, matches),
-            Some(("nix", matches)) => command_export::<NixConf>(
-                net,
-                matches,
-                configs::nix::NixExportConfig {
-                    use_keyfile: Some(KeyFileExportConfig {
-                        target_prefix: "mowmow".into(),
-                    }),
-                },
-            ),
+            Some(("nix", matches)) => {
+                let conf = configs::nix::NixExportConfig {
+                    use_keyfile: if matches.is_present("separate-secrets") {
+                        Some(KeyFileExportConfig {
+                            target_prefix: "/secrets".into(),
+                        })
+                    } else {
+                        None
+                    },
+                };
+                command_export::<NixConf>(net, matches, conf)
+            }
             Some(("conf", matches)) => command_export::<ConfFile>(net, matches, ()),
             Some(("qr", matches)) => command_export::<QRConfig>(net, matches, ()),
             Some(("rm", matches)) => command_remove(net, matches),
@@ -426,12 +466,19 @@ For more information and source code visit https://gitlab.com/cab404/wg-bond.",
                 println!("{}", export_hosts(net)?);
                 Ok(())
             }
+            Some(("secrets", matches)) => {
+                command_export_secrets(net, matches).map_err(|e| e.to_string())
+            }
             Some(("nixops", _)) => {
                 println!(
                     "{}",
-                    NixOpsConf::write_config(
+                    nixops::write_config(
                         net,
-                        configs::nix::NixExportConfig { use_keyfile: None }
+                        configs::nix::NixExportConfig {
+                            use_keyfile: Some(KeyFileExportConfig {
+                                target_prefix: "/secrets".into()
+                            })
+                        }
                     )?
                 );
                 Ok(())
