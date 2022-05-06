@@ -7,7 +7,6 @@ extern crate serde_json;
 use crate::configs::check_endpoint;
 use crate::configs::nix::KeyFileExportConfig;
 use crate::configs::ConfigType;
-use clap::AppSettings::SubcommandRequired;
 use ipnetwork::IpNetwork;
 use std::io::Write;
 use std::net::IpAddr;
@@ -144,7 +143,7 @@ fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Arg
         name,
         endpoint: None,
         id: peer_id,
-        private_key: wg_tools::gen_private_key()?,
+        private_key: wg_tools::gen_private_key(),
         flags: vec![],
     };
 
@@ -248,7 +247,7 @@ fn command_export_secrets(
     Ok(())
 }
 
-fn edit_params<'a>(subcommand: clap::App<'a>) -> clap::App<'a> {
+fn edit_params<'a>(subcommand: clap::Command<'a>) -> clap::Command<'a> {
     subcommand
     .arg(clap::Arg::new("endpoint")
             .short('e')
@@ -264,7 +263,7 @@ fn edit_params<'a>(subcommand: clap::App<'a>) -> clap::App<'a> {
             .long("dns")
             .help("DNS for a peer")
             .value_name("DNS_1,DNS_2")
-            .use_delimiter(true)
+            .use_value_delimiter(true)
             .validator(|f| IpAddr::from_str(f)
             .map(|_| ())
             .map_err(|f|f.to_string())
@@ -311,7 +310,7 @@ fn edit_params<'a>(subcommand: clap::App<'a>) -> clap::App<'a> {
         )
 }
 
-fn export_params<'a>(subcommand: clap::App<'a>) -> clap::App<'a> {
+fn export_params<'a>(subcommand: clap::Command<'a>) -> clap::Command<'a> {
     subcommand
         .arg(
             clap::Arg::new("name")
@@ -331,12 +330,12 @@ fn main() {
     pretty_env_logger::init();
     // std::panic::set_hook(Box::new(panic_hook));
 
-    let args = clap::App::new("wg-bond")
+    let args = clap::Command::new("wg-bond")
         .version("0.3.0")
         .about("Wireguard configuration manager")
         .author("Vladimir Serov <cab404>")
         .long_about("Wireguard configuration manager.\nSources: https://gitlab.com/cab404/wg-bond.")
-        .setting(SubcommandRequired)
+        .subcommand_required(true)
         .arg(
             clap::Arg::new("config")
                 .short('c')
@@ -345,10 +344,10 @@ fn main() {
                 .value_name("FILE")
                 .default_value("./wg-bond.json")
                 .takes_value(true)
-                .use_delimiter(false),
+                .use_value_delimiter(false),
         )
         .subcommand(
-            clap::App::new("init")
+            clap::Command::new("init")
                 .about("Initializes a config file")
                 .arg(clap::Arg::new("name").help("Network name").required(true))
                 .arg(
@@ -363,12 +362,12 @@ fn main() {
                                 .map_err(|e| e.to_string())
                         })
                         .default_value("10.0.0.0/24")
-                        .use_delimiter(false)
+                        .use_value_delimiter(false)
                         .takes_value(true),
                 ),
         )
         .subcommand(
-            edit_params(clap::App::new("add"))
+            edit_params(clap::Command::new("add"))
                 .about("Adds a new peer to the network")
                 .arg(
                     clap::Arg::new("name")
@@ -376,9 +375,9 @@ fn main() {
                         .required(true),
                 ),
         )
-        .subcommand(clap::App::new("list").about("Lists all added peers"))
+        .subcommand(clap::Command::new("list").about("Lists all added peers"))
         .subcommand(
-            edit_params(clap::App::new("edit"))
+            edit_params(clap::Command::new("edit"))
                 .about("Edits existing peer")
                 .arg(
                     clap::Arg::new("name")
@@ -387,7 +386,7 @@ fn main() {
                 ),
         )
         .subcommand(
-            export_params(clap::App::new("nix"))
+            export_params(clap::Command::new("nix"))
                 .arg(
                     clap::Arg::new("separate-secrets")
                     .long("separate-secrets")
@@ -398,9 +397,9 @@ fn main() {
                 )
                 .about("Generates Nix configs"),
         )
-        .subcommand(clap::App::new("nixops").about("Generates NixOps config for all peers"))
+        .subcommand(clap::Command::new("nixops").about("Generates NixOps config for all peers"))
         .subcommand(
-            clap::App::new("secrets")
+            clap::Command::new("secrets")
                 .about("Generates secret files for all peers")
                 .arg(
                     clap::Arg::new("target")
@@ -408,16 +407,16 @@ fn main() {
                         .default_value("./secrets"),
                 ),
         )
-        .subcommand(clap::App::new("hosts").about("Generates /etc/hosts for all peers"))
+        .subcommand(clap::Command::new("hosts").about("Generates /etc/hosts for all peers"))
         .subcommand(
-            clap::App::new("rm").about("Deletes a peer").arg(
+            clap::Command::new("rm").about("Deletes a peer").arg(
                 clap::Arg::new("name")
                     .help("Name of a new peer")
                     .required(true),
             ),
         )
-        .subcommand(export_params(clap::App::new("qr")).about("Generates QR code with config"))
-        .subcommand(export_params(clap::App::new("conf")).about("Generates wg-quick configs"))
+        .subcommand(export_params(clap::Command::new("qr")).about("Generates QR code with config"))
+        .subcommand(export_params(clap::Command::new("conf")).about("Generates wg-quick configs"))
         .get_matches();
 
     let cfg_file = args.value_of("config").unwrap();
@@ -494,8 +493,3 @@ fn main() {
         Err(e) => println!("{}", e),
     }
 }
-
-// fn panic_hook(info: &std::panic::PanicInfo<'_>) {
-//     println!("We panicked.");
-//     println!("mowmow : {:?}", info.payload());
-// }

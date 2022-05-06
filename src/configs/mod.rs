@@ -144,7 +144,7 @@ pub struct Peer {
 pub struct ProxyConfig {
     /// Which networks to proxy
     pub networks: Vec<IpNetwork>,
-    /// Whether to proxy whole internet, except [local networks](http://link-to-wikipedia-list)
+    /// Whether to proxy whole internet, except [local networks](https://en.wikipedia.org/wiki/Private_network)
     /// Useful on mobile devices. Can be redundant.
     /// See also [`GLOBAL_NET_V4`] and [`GLOBAL_NET_V6`]
     pub use_global_networks: bool,
