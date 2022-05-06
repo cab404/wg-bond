@@ -1,6 +1,9 @@
 {
-
-  outputs = { self, nixpkgs }:
+  inputs.flake-compat = {
+    url = "github:edolstra/flake-compat";
+    flake = false;
+  };
+  outputs = { self, nixpkgs, ... }:
     let onPkgs = fn: builtins.mapAttrs fn nixpkgs.legacyPackages;
     in {
       defaultPackage = onPkgs (_: pkgs:
