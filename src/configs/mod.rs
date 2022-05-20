@@ -1,6 +1,8 @@
 use crate::wg_tools;
 use ipnetwork::{IpNetwork, Ipv4Network, Ipv6Network};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::convert::TryInto;
 use std::iter::*;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
@@ -333,6 +335,8 @@ pub struct WireguardNetworkInfo {
     pub flags: Vec<NetworkFlag>,
     pub networks: Vec<IpNetwork>,
     pub peers: Vec<PeerInfo>,
+    pub ignored: HashSet<IpNetwork>,
+    pub considered: HashMap<IpNetwork, Vec<IpNetwork>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, AsRefStr, Clone)]
@@ -357,7 +361,7 @@ impl WireguardNetworkInfo {
         peer.allowed_ips = self
             .networks
             .iter()
-            .map(|f| get_network_address_as_network(*f, info.id))
+            .map(|f| self.get_free_net_address_as_network(*f, info.id))
             .collect::<Vec<_>>();
 
         for flag in &info.flags {
@@ -372,7 +376,7 @@ impl WireguardNetworkInfo {
         interface.address = self
             .networks
             .iter()
-            .map(|f| get_network_address(*f, info.id))
+            .map(|f| self.get_free_net_address(*f, info.id))
             .collect::<Vec<_>>();
 
         for flag in &info.flags {
@@ -451,6 +455,33 @@ impl WireguardNetworkInfo {
     pub fn has_flag(&self, flag_name: &str) -> bool {
         self.flags.iter().any(|f| f.as_ref() == flag_name)
     }
+
+    pub fn get_free_net_address(&self, net: IpNetwork, num: u128) -> IpAddr {
+        let mut cum = 0u128;
+        let subnets = &self.considered[&net];
+        for subnet in subnets {
+            if cum + size(&subnet) > num {
+                return get_network_address(*subnet, num - cum);
+            }
+            cum += size(&subnet);
+        }
+        //TODO: Consider showing message that no more IPs in net left
+        panic!()
+    }
+
+    pub fn get_free_net_address_as_network(&self, net: IpNetwork, num: u128) -> IpNetwork {
+        match self.get_free_net_address(net, num) {
+            a @ IpAddr::V4(_) => IpNetwork::new(a, 32).unwrap(),
+            a @ IpAddr::V6(_) => IpNetwork::new(a, 128).unwrap(),
+        }
+    }
+}
+
+fn size(net: &IpNetwork) -> u128 {
+    match &net {
+        IpNetwork::V4(n) => n.size() as u128,
+        IpNetwork::V6(n) => n.size(),
+    }
 }
 
 fn get_network_address_v4(net: Ipv4Network, num: u32) -> Ipv4Addr {
@@ -482,4 +513,63 @@ pub trait ConfigType {
     // let config = net.get_configuration(my_peer);
     // let interface = net.map_to_interface(my_peer);
     fn write_config(net: WireguardConfiguration, options: Self::ExportConfig) -> String;
+}
+
+pub fn ban_ip_subnet(ns: &Vec<IpNetwork>, banned: &IpNetwork) -> Vec<IpNetwork> {
+    let mut ans = vec![];
+    for n in ns.iter() {
+        ans.append(&mut exclude_subnet(n, banned))
+    }
+    ans
+}
+
+fn exclude_subnet(n: &IpNetwork, n_to_exclude: &IpNetwork) -> Vec<IpNetwork> {
+    use IpNetwork::*;
+
+    match (n, &n_to_exclude) {
+        (V4(n), V4(n_to_exclude)) => exclude_v4subnet(*n, n_to_exclude)
+            .iter()
+            .map(|&n| IpNetwork::V4(n))
+            .collect(),
+        (V6(n), V6(n_to_exclude)) => todo!("Ipv6 blacklists not yet supported"),
+        _ => vec![n.clone()],
+    }
+}
+
+fn first_nbits(x: u32, n: u8) -> u32 {
+    x & (u32::MAX << (32 - n))
+}
+
+fn exclude_v4subnet(n: Ipv4Network, n_to_exclude: &Ipv4Network) -> Vec<Ipv4Network> {
+    use std::cmp;
+
+    let n_pref = n.prefix();
+    let nx_pref = n_to_exclude.prefix();
+
+    let min_pref = cmp::min(n_pref, nx_pref);
+    let prefs_equal = first_nbits(u32::from(n.ip()), min_pref)
+        == first_nbits(u32::from(n_to_exclude.ip()), min_pref);
+    if nx_pref == min_pref && prefs_equal {
+        vec![]
+    } else if !prefs_equal {
+        vec![n.clone()]
+    } else {
+        let mut first = exclude_v4subnet(
+            Ipv4Network::new(
+                (u32::from(n.ip()) & !(1 << (32 - n.prefix() - 1))).into(),
+                n.prefix() + 1,
+            )
+            .unwrap(),
+            n_to_exclude,
+        );
+        first.append(&mut exclude_v4subnet(
+            Ipv4Network::new(
+                (u32::from(n.ip()) | (1 << (32 - n.prefix() - 1))).into(),
+                n.prefix() + 1,
+            )
+            .unwrap(),
+            n_to_exclude,
+        ));
+        first
+    }
 }

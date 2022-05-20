@@ -1,16 +1,49 @@
 {
-  "name": "ooof",
+  "name": "net",
   "flags": [],
   "networks": [
-    "10.0.0.0/24"
+    "10.0.0.0/16"
   ],
   "peers": [
     {
-      "name": "cab",
-      "private_key": "eKVXLS+mrHbH7cFRjllHG/7SqtUeTGLT+uJ59kSHmXw=",
+      "name": "1",
+      "private_key": "QKLO7cSdOe594rrTdPCQ7elAmeghSWpBCeoxTv88vmc=",
       "id": 1,
       "flags": [],
       "endpoint": null
+    },
+    {
+      "name": "2",
+      "private_key": "8EQlG7cewJR/CdRWZCqSD+G1tiaVk0NPZw6V7A1FAlM=",
+      "id": 2,
+      "flags": [],
+      "endpoint": null
+    },
+    {
+      "name": "3",
+      "private_key": "2NZU3DQcA1fQLQ1duGJmjpVtQo9YhnL3Mcp2BatHRGA=",
+      "id": 3,
+      "flags": [],
+      "endpoint": null
     }
-  ]
+  ],
+  "ignored": [
+    "10.0.25.0/24",
+    "10.0.0.0/24"
+  ],
+  "considered": {
+    "10.0.0.0/16": [
+      "10.0.1.0/24",
+      "10.0.2.0/23",
+      "10.0.4.0/22",
+      "10.0.8.0/21",
+      "10.0.16.0/21",
+      "10.0.24.0/24",
+      "10.0.26.0/23",
+      "10.0.28.0/22",
+      "10.0.32.0/19",
+      "10.0.64.0/18",
+      "10.0.128.0/17"
+    ]
+  }
 }

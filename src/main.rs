@@ -4,10 +4,11 @@ extern crate rand;
 extern crate serde;
 extern crate serde_json;
 
-use crate::configs::check_endpoint;
 use crate::configs::nix::KeyFileExportConfig;
 use crate::configs::ConfigType;
+use crate::configs::{ban_ip_subnet, check_endpoint};
 use ipnetwork::IpNetwork;
+use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -65,13 +66,14 @@ fn new_id(cfg: &configs::WireguardNetworkInfo) -> u128 {
 
 fn command_init_config(matches: &clap::ArgMatches) -> configs::WireguardNetworkInfo {
     let name: &str = matches.value_of("name").unwrap();
-    let net: &str = matches.value_of("network").unwrap();
-
+    let net = IpNetwork::from_str(matches.value_of("network").unwrap()).unwrap();
     configs::WireguardNetworkInfo {
         name: name.to_string(),
-        networks: vec![IpNetwork::from_str(net).unwrap()],
+        networks: vec![net],
         flags: vec![],
         peers: vec![],
+        ignored: HashSet::new(),
+        considered: HashMap::from([(net, vec![net])]),
     }
 }
 
@@ -417,6 +419,20 @@ fn main() {
         )
         .subcommand(export_params(clap::Command::new("qr")).about("Generates QR code with config"))
         .subcommand(export_params(clap::Command::new("conf")).about("Generates wg-quick configs"))
+        .subcommand(
+            clap::Command::new("ignore")
+            .about("Sets IP ranges to ignore when generating IPs for peers")
+            .arg(
+                clap::Arg::new("range")
+                    .help("IP range to ignore")
+                    .required(true)
+                    .validator(|f| {
+                        IpNetwork::from_str(f)
+                            .map(|_| ())
+                            .map_err(|e| e.to_string())
+                    })
+            )
+        )
         .get_matches();
 
     let cfg_file = args.value_of("config").unwrap();
@@ -438,6 +454,20 @@ fn main() {
             .position(|f| f.name == name)
             .ok_or("".to_string())?;
         cfg.peers.remove(peer);
+        Ok(())
+    }
+
+    fn command_ignore_range(
+        cfg: &mut configs::WireguardNetworkInfo,
+        matches: &clap::ArgMatches,
+    ) -> RVoid {
+        let s = matches.value_of("range").ok_or("".to_string())?;
+        let range = IpNetwork::from_str(s).map_err(|f| f.to_string())?;
+        if cfg.ignored.insert(range) {
+            for (_, subnets) in cfg.considered.iter_mut() {
+                *subnets = ban_ip_subnet(subnets, &range);
+            }
+        }
         Ok(())
     }
 
@@ -482,6 +512,7 @@ fn main() {
                 );
                 Ok(())
             }
+            Some(("ignore", matches)) => command_ignore_range(net, matches),
             _ => Ok(()),
         }
     }
