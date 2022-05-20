@@ -518,58 +518,67 @@ pub trait ConfigType {
 pub fn ban_ip_subnet(ns: &Vec<IpNetwork>, banned: &IpNetwork) -> Vec<IpNetwork> {
     let mut ans = vec![];
     for n in ns.iter() {
-        ans.append(&mut exclude_subnet(n, banned))
+        ans.append(&mut exclude_subnet(*n, banned))
     }
     ans
 }
 
-fn exclude_subnet(n: &IpNetwork, n_to_exclude: &IpNetwork) -> Vec<IpNetwork> {
-    use IpNetwork::*;
-
-    match (n, &n_to_exclude) {
-        (V4(n), V4(n_to_exclude)) => exclude_v4subnet(*n, n_to_exclude)
-            .iter()
-            .map(|&n| IpNetwork::V4(n))
-            .collect(),
-        (V6(n), V6(n_to_exclude)) => todo!("Ipv6 blacklists not yet supported"),
-        _ => vec![n.clone()],
-    }
-}
-
-fn first_nbits(x: u32, n: u8) -> u32 {
+fn first_nbits32(x: u32, n: u8) -> u32 {
     x & (u32::MAX << (32 - n))
 }
 
-fn exclude_v4subnet(n: Ipv4Network, n_to_exclude: &Ipv4Network) -> Vec<Ipv4Network> {
+fn first_nbits128(x: u128, n: u8) -> u128 {
+    x & (u128::MAX << (128 - n))
+}
+
+fn subnets(net: IpNetwork) -> (IpNetwork, IpNetwork) {
+    let new_prefix = net.prefix() + 1;
+    match net {
+        IpNetwork::V4(n) => {
+            let first = u32::from(n.ip()) & !(1 << (32 - new_prefix));
+            let second = u32::from(n.ip()) | (1 << (32 - new_prefix));
+            (
+                IpNetwork::V4(Ipv4Network::new(first.into(), new_prefix).unwrap()),
+                IpNetwork::V4(Ipv4Network::new(second.into(), new_prefix).unwrap()),
+            )
+        }
+        IpNetwork::V6(n) => {
+            let first = u128::from(n.ip()) & !(1 << (128 - new_prefix));
+            let second = u128::from(n.ip()) | (1 << (128 - new_prefix));
+            (
+                IpNetwork::V6(Ipv6Network::new(first.into(), new_prefix).unwrap()),
+                IpNetwork::V6(Ipv6Network::new(second.into(), new_prefix).unwrap()),
+            )
+        }
+    }
+}
+
+fn exclude_subnet(n: IpNetwork, n_to_exclude: &IpNetwork) -> Vec<IpNetwork> {
     use std::cmp;
 
     let n_pref = n.prefix();
     let nx_pref = n_to_exclude.prefix();
 
     let min_pref = cmp::min(n_pref, nx_pref);
-    let prefs_equal = first_nbits(u32::from(n.ip()), min_pref)
-        == first_nbits(u32::from(n_to_exclude.ip()), min_pref);
+    let prefs_equal = match (n, &n_to_exclude) {
+        (IpNetwork::V4(n), IpNetwork::V4(nx)) => {
+            first_nbits32(n.ip().into(), min_pref) == first_nbits32(nx.ip().into(), min_pref)
+        }
+        (IpNetwork::V6(n), IpNetwork::V6(nx)) => {
+            first_nbits128(n.ip().into(), min_pref) == first_nbits128(nx.ip().into(), min_pref)
+        }
+        _ => return vec![n],
+    };
     if nx_pref == min_pref && prefs_equal {
         vec![]
     } else if !prefs_equal {
-        vec![n.clone()]
+        vec![n]
     } else {
-        let mut first = exclude_v4subnet(
-            Ipv4Network::new(
-                (u32::from(n.ip()) & !(1 << (32 - n.prefix() - 1))).into(),
-                n.prefix() + 1,
-            )
-            .unwrap(),
-            n_to_exclude,
-        );
-        first.append(&mut exclude_v4subnet(
-            Ipv4Network::new(
-                (u32::from(n.ip()) | (1 << (32 - n.prefix() - 1))).into(),
-                n.prefix() + 1,
-            )
-            .unwrap(),
-            n_to_exclude,
-        ));
-        first
+        let mut filtered: Vec<IpNetwork> = vec![];
+
+        let (n1, n2) = subnets(n);
+        filtered.append(&mut exclude_subnet(n1, n_to_exclude));
+        filtered.append(&mut exclude_subnet(n2, n_to_exclude));
+        filtered
     }
 }
