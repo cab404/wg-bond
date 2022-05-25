@@ -7,6 +7,7 @@ extern crate serde_json;
 use crate::configs::nix::KeyFileExportConfig;
 use crate::configs::ConfigType;
 use crate::configs::{ban_ip_subnet, check_endpoint};
+use bimap::BiMap;
 use ipnetwork::IpNetwork;
 use std::collections::{HashMap, HashSet};
 use std::io::Write;
@@ -72,8 +73,9 @@ fn command_init_config(matches: &clap::ArgMatches) -> configs::WireguardNetworkI
         networks: vec![net],
         flags: vec![],
         peers: vec![],
-        ignored: HashSet::new(),
-        considered: HashMap::from([(net, vec![net])]),
+        peer_ips: [(net, Box::new(BiMap::default()))].into(),
+        ignored_ipv4: HashSet::new(),
+        ignored_ipv6: HashSet::new(),
     }
 }
 
@@ -152,6 +154,16 @@ fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Arg
     parse_peer_edit_command(&mut peer, matches)?;
 
     cfg.peers.append(&mut vec![peer]);
+
+    let addresses: Vec<IpAddr> = cfg
+        .networks
+        .iter()
+        .map(|&net| cfg.get_free_net_address(net, peer_id))
+        .collect();
+
+    for ((_, peer_ips), addr) in cfg.peer_ips.iter_mut().zip(addresses) {
+        peer_ips.insert(peer_id, addr);
+    }
 
     info!("Peer added!");
 
@@ -463,10 +475,31 @@ fn main() {
     ) -> RVoid {
         let s = matches.value_of("range").ok_or("".to_string())?;
         let range = IpNetwork::from_str(s).map_err(|f| f.to_string())?;
-        if cfg.ignored.insert(range) {
-            for (_, subnets) in cfg.considered.iter_mut() {
-                *subnets = ban_ip_subnet(subnets, &range);
+        match range {
+            IpNetwork::V4(range) => {
+                if let Some(ex) = cfg
+                    .ignored_ipv4
+                    .iter()
+                    .find(|inner| inner.is_subnet_of(range))
+                    .cloned()
+                {
+                    println!(
+                        "An already ignored subnet {} will now be covered by {}",
+                        ex, range
+                    );
+                    cfg.ignored_ipv4.remove(&ex);
+                    cfg.ignored_ipv4.insert(range);
+                } else if let Some(ex) = cfg
+                    .ignored_ipv4
+                    .iter()
+                    .find(|outer| outer.is_supernet_of(range))
+                {
+                    println!("A supernet {} covering given net is already ignored", ex)
+                } else {
+                    cfg.ignored_ipv4.insert(range);
+                }
             }
+            IpNetwork::V6(_) => todo!(),
         }
         Ok(())
     }

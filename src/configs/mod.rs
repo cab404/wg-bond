@@ -1,4 +1,5 @@
 use crate::wg_tools;
+use bimap::BiMap;
 use ipnetwork::{IpNetwork, Ipv4Network, Ipv6Network};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -335,8 +336,10 @@ pub struct WireguardNetworkInfo {
     pub flags: Vec<NetworkFlag>,
     pub networks: Vec<IpNetwork>,
     pub peers: Vec<PeerInfo>,
-    pub ignored: HashSet<IpNetwork>,
-    pub considered: HashMap<IpNetwork, Vec<IpNetwork>>,
+    pub peer_ips: HashMap<IpNetwork, Box<BiMap<u128, IpAddr>>>,
+    // Non-overlapping ignored subnets
+    pub ignored_ipv4: HashSet<Ipv4Network>,
+    pub ignored_ipv6: HashSet<Ipv6Network>,
 }
 
 #[derive(Serialize, Deserialize, Debug, AsRefStr, Clone)]
@@ -361,7 +364,7 @@ impl WireguardNetworkInfo {
         peer.allowed_ips = self
             .networks
             .iter()
-            .map(|f| self.get_free_net_address_as_network(*f, info.id))
+            .map(|f| as_network(*self.peer_ips[f].get_by_left(&info.id).unwrap()))
             .collect::<Vec<_>>();
 
         for flag in &info.flags {
@@ -376,7 +379,7 @@ impl WireguardNetworkInfo {
         interface.address = self
             .networks
             .iter()
-            .map(|f| self.get_free_net_address(*f, info.id))
+            .map(|f| *self.peer_ips[f].get_by_left(&info.id).unwrap())
             .collect::<Vec<_>>();
 
         for flag in &info.flags {
@@ -456,31 +459,48 @@ impl WireguardNetworkInfo {
         self.flags.iter().any(|f| f.as_ref() == flag_name)
     }
 
-    pub fn get_free_net_address(&self, net: IpNetwork, num: u128) -> IpAddr {
-        let mut cum = 0u128;
-        let subnets = &self.considered[&net];
-        for subnet in subnets {
-            if cum + size(&subnet) > num {
-                return get_network_address(*subnet, num - cum);
+    fn get_free_net_address_v4(&self, net: Ipv4Network, num: u32) -> Result<Ipv4Addr, String> {
+        let no_free_ip_left = Err(std::format!("No more unreserved IPs left in {}", net));
+        let mut ip = u32::from(net.ip()) + num;
+        let is_taken = |ip: u32| {
+            self.peer_ips
+                .get(&IpNetwork::V4(net))
+                .unwrap_or(&Box::new(BiMap::default()))
+                .contains_right(&IpAddr::V4(ip.into()))
+        };
+        loop {
+            if let Some(n) = self.ignored_ipv4.iter().find(|&&n| n.contains(ip.into())) {
+                // going to first ip after end of ignored subnet
+                ip = u32::from(n.ip()) + n.size()
             }
-            cum += size(&subnet);
+            // skip already taken IPs
+            while net.contains(ip.into()) && is_taken(ip) {
+                ip += 1;
+            }
+            if !net.contains(ip.into()) {
+                return no_free_ip_left;
+            } else if self.ignored_ipv4.iter().all(|&n| !n.contains(ip.into())) {
+                return Ok(ip.into());
+            }
         }
-        //TODO: Consider showing message that no more IPs in net left
-        panic!()
     }
 
-    pub fn get_free_net_address_as_network(&self, net: IpNetwork, num: u128) -> IpNetwork {
-        match self.get_free_net_address(net, num) {
-            a @ IpAddr::V4(_) => IpNetwork::new(a, 32).unwrap(),
-            a @ IpAddr::V6(_) => IpNetwork::new(a, 128).unwrap(),
+    pub fn get_free_net_address(&self, net: IpNetwork, num: u128) -> IpAddr {
+        let addr = match net {
+            IpNetwork::V4(net) => self.get_free_net_address_v4(net, num.try_into().unwrap()),
+            IpNetwork::V6(_) => todo!(),
+        };
+        match addr {
+            Ok(addr) => IpAddr::V4(addr),
+            Err(err) => panic!("{}", err),
         }
     }
 }
 
-fn size(net: &IpNetwork) -> u128 {
-    match &net {
-        IpNetwork::V4(n) => n.size() as u128,
-        IpNetwork::V6(n) => n.size(),
+pub fn as_network(addr: IpAddr) -> IpNetwork {
+    match addr {
+        IpAddr::V4(_) => IpNetwork::new(addr, 32).unwrap(),
+        IpAddr::V6(_) => IpNetwork::new(addr, 128).unwrap(),
     }
 }
 
@@ -516,11 +536,7 @@ pub trait ConfigType {
 }
 
 pub fn ban_ip_subnet(ns: &Vec<IpNetwork>, banned: &IpNetwork) -> Vec<IpNetwork> {
-    let mut ans = vec![];
-    for n in ns.iter() {
-        ans.append(&mut exclude_subnet(*n, banned))
-    }
-    ans
+    ns.iter().flat_map(|n| exclude_subnet(*n, banned)).collect()
 }
 
 fn first_nbits32(x: u32, n: u8) -> u32 {
