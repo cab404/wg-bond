@@ -1,5 +1,7 @@
 use crate::configs;
 
+use super::PeerFlag;
+
 pub fn export_hosts(cfg: &configs::WireguardNetworkInfo) -> Result<String, String> {
     // TODO: replace with some table lib
     let mut built = String::new();

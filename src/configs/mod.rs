@@ -140,7 +140,7 @@ pub struct Peer {
     pub endpoint: Option<String>,
     pub persistent_keepalive: Option<u16>,
 }
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct ProxyConfig {
     /// Which networks to proxy
     pub networks: Vec<IpNetwork>,
@@ -153,7 +153,7 @@ pub struct ProxyConfig {
 }
 
 // Describes emergent features of peers, not set by one flag.
-#[derive(Serialize, Deserialize, Debug, AsRefStr, Clone)]
+#[derive(Serialize, Deserialize, Debug, AsRefStr, Clone, PartialEq, Eq)]
 pub enum PeerFlag {
     Masquerade { interface: String },
     Gateway { ignore_local_networks: bool },
@@ -163,6 +163,7 @@ pub enum PeerFlag {
     DNS { addresses: Vec<IpAddr> },
     NixOpsMachine,
     Center,
+    Template,
 }
 
 #[test]
@@ -325,6 +326,10 @@ impl PeerInfo {
             preshared_key: None,
         })
     }
+
+    pub fn is_template(&self) -> bool {
+        self.flags.contains(&PeerFlag::Template)
+    }
 }
 
 // Overall network informatiom
@@ -337,6 +342,7 @@ pub struct WireguardNetworkInfo {
     // Non-overlapping ignored subnets
     pub ignored_ipv4: HashSet<Ipv4Network>,
     pub ignored_ipv6: HashSet<Ipv6Network>,
+    pub templates: Vec<PeerInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, AsRefStr, Clone)]
@@ -367,6 +373,9 @@ impl WireguardNetworkInfo {
     }
 
     pub fn map_to_interface(&self, info: &PeerInfo) -> Result<Interface, String> {
+        if info.is_template() {
+            Err("Cannot generate interface for template peer")?;
+        }
         let mut interface = info.derive_interface()?;
 
         interface.address = info.ips.clone();

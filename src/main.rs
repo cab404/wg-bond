@@ -74,6 +74,7 @@ fn command_init_config(matches: &clap::ArgMatches) -> configs::WireguardNetworkI
         peers: vec![],
         ignored_ipv4: HashSet::new(),
         ignored_ipv6: HashSet::new(),
+        templates: vec![],
     }
 }
 
@@ -128,6 +129,10 @@ fn parse_peer_edit_command(peer: &mut configs::PeerInfo, matches: &clap::ArgMatc
             .insert(0, configs::PeerFlag::Keepalive { keepalive })
     }
 
+    if matches.is_present("astemplate") {
+        peer.flags.insert(0, configs::PeerFlag::Template);
+    }
+
     peer.flags.sort_by(|a, b| a.as_ref().cmp(b.as_ref()));
     peer.flags.dedup_by(|a, b| a.as_ref() == b.as_ref());
 
@@ -152,12 +157,16 @@ fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Arg
 
     parse_peer_edit_command(&mut peer, matches)?;
 
-    for net in &cfg.networks {
-        peer.ips.push(cfg.get_free_net_address(*net)?);
+    if peer.is_template() {
+        cfg.templates.push(peer);
+        info!("Peer template added!");
+    } else {
+        for net in &cfg.networks {
+            peer.ips.push(cfg.get_free_net_address(*net)?);
+        }
+        cfg.peers.push(peer);
+        info!("Peer added!");
     }
-    cfg.peers.append(&mut vec![peer]);
-
-    info!("Peer added!");
 
     Ok(())
 }
@@ -203,6 +212,9 @@ fn command_export<C: ConfigType>(
 ) -> RVoid {
     let name: String = matches.value_of("name").unwrap().into();
     let peer = cfg.by_name(&name).ok_or("No peer found with this name.")?;
+    if peer.is_template() {
+        Err("Can't export configuration for template")?;
+    }
 
     let newcfg = &mut cfg.clone();
 
@@ -313,6 +325,11 @@ fn edit_params<'a>(subcommand: clap::Command<'a>) -> clap::Command<'a> {
             )
             .takes_value(true)
             .value_name("SECONDS")
+        )
+        .arg(clap::Arg::new("astemplate")
+            .long("astemplate")
+            .help("Whether this peer is to be used as template for creating other peers.")
+            .takes_value(false)
         )
 }
 
