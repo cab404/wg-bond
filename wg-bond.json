@@ -2,43 +2,74 @@
   "name": "net",
   "flags": [],
   "networks": [
-    "1::/120"
+    "10.0.0.0/24"
   ],
   "peers": [
     {
-      "name": "1",
-      "private_key": "6E+2SjAegNt9RGCJWY1HltfhwGxRFPKFHsIptjmsoWI=",
+      "name": "fromtemplate",
+      "private_key": "cKq3udRC9q3GlN3Er+wnnDgCTzGIaYqM78ybTJ0jfWU=",
       "id": 1,
-      "flags": [],
-      "endpoint": null,
+      "flags": [
+        {
+          "Gateway": {
+            "ignore_local_networks": true
+          }
+        },
+        {
+          "Keepalive": {
+            "keepalive": 30
+          }
+        }
+      ],
+      "endpoint": "template.io:8080",
       "ips": [
-        "1::4"
+        "10.0.0.1"
       ]
     },
     {
-      "name": "2",
-      "private_key": "IBCsA6ZRO+VbwP8EJKRsg+gjzFMiQGOxZjMmHQojvHQ=",
+      "name": "fromtemplate2",
+      "private_key": "eNrlokP+otZ8o/qnWIc45qjdUliZmpGyprTTYVV9kW0=",
       "id": 2,
-      "flags": [],
-      "endpoint": null,
+      "flags": [
+        {
+          "Gateway": {
+            "ignore_local_networks": true
+          }
+        },
+        {
+          "Keepalive": {
+            "keepalive": 30
+          }
+        }
+      ],
+      "endpoint": "template.io:8080",
       "ips": [
-        "1::5"
-      ]
-    },
-    {
-      "name": "3",
-      "private_key": "KOVREmR7ArC5kq8DdcmwHLJc1PRMZjIPmlxG5h89MEQ=",
-      "id": 3,
-      "flags": [],
-      "endpoint": null,
-      "ips": [
-        "1::8"
+        "10.0.0.2"
       ]
     }
   ],
   "ignored_ipv4": [],
-  "ignored_ipv6": [
-    "1::6/127",
-    "1::/126"
+  "ignored_ipv6": [],
+  "templates": [
+    {
+      "name": "template",
+      "private_key": "8MlROc7bTlyCkwJh5CKDugHDZPjSfylUaCG1U+5DuGk=",
+      "id": 3,
+      "flags": [
+        {
+          "Gateway": {
+            "ignore_local_networks": true
+          }
+        },
+        {
+          "Keepalive": {
+            "keepalive": 30
+          }
+        },
+        "Template"
+      ],
+      "endpoint": "template.io:8080",
+      "ips": []
+    }
   ]
 }

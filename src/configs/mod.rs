@@ -441,12 +441,25 @@ impl WireguardNetworkInfo {
         Ok(config)
     }
 
-    pub fn by_name_mut(&mut self, name: &str) -> Option<&mut PeerInfo> {
-        self.peers.iter_mut().find(|f| f.name == *name)
+    // How to implement it shorter??
+    pub fn by_name_mut(&mut self, name: &str, search_in_templates: bool) -> Option<&mut PeerInfo> {
+        let mut peers = self.peers.iter_mut();
+        if search_in_templates {
+            peers
+                .chain(self.templates.iter_mut())
+                .find(|f| f.name == *name)
+        } else {
+            peers.find(|f| f.name == *name)
+        }
     }
 
-    pub fn by_name(&self, name: &str) -> Option<&PeerInfo> {
-        self.peers.iter().find(|f| f.name == *name)
+    pub fn by_name(&self, name: &str, search_in_templates: bool) -> Option<&PeerInfo> {
+        let mut peers = self.peers.iter();
+        if search_in_templates {
+            peers.chain(self.templates.iter()).find(|f| f.name == *name)
+        } else {
+            peers.find(|f| f.name == *name)
+        }
     }
 
     pub fn by_id(&self, id: u128) -> Option<&PeerInfo> {
