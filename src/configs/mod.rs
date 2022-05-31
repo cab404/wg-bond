@@ -1,12 +1,10 @@
 use crate::wg_tools;
-use bimap::BiMap;
+use apply::Apply;
 use ipnetwork::{IpNetwork, Ipv4Network, Ipv6Network};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::collections::HashSet;
-use std::convert::TryInto;
 use std::iter::*;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::net::{IpAddr, Ipv4Addr};
 use std::str::FromStr;
 use strum_macros::AsRefStr;
 use url::Host;
@@ -296,6 +294,7 @@ pub struct PeerInfo {
     pub id: u128,
     pub flags: Vec<PeerFlag>,
     pub endpoint: Option<String>,
+    pub ips: Vec<IpAddr>,
 }
 
 impl PeerInfo {
@@ -336,7 +335,6 @@ pub struct WireguardNetworkInfo {
     pub flags: Vec<NetworkFlag>,
     pub networks: Vec<IpNetwork>,
     pub peers: Vec<PeerInfo>,
-    pub peer_ips: HashMap<IpNetwork, Box<BiMap<u128, IpAddr>>>,
     // Non-overlapping ignored subnets
     pub ignored_ipv4: HashSet<Ipv4Network>,
     pub ignored_ipv6: HashSet<Ipv6Network>,
@@ -361,11 +359,7 @@ macro_rules! find_pattern {
 impl WireguardNetworkInfo {
     pub fn map_to_peer(&self, info: &PeerInfo) -> Result<Peer, String> {
         let mut peer = info.derive_peer()?;
-        peer.allowed_ips = self
-            .networks
-            .iter()
-            .map(|f| as_network(*self.peer_ips[f].get_by_left(&info.id).unwrap()))
-            .collect::<Vec<_>>();
+        peer.allowed_ips = info.ips.iter().map(|n| as_network(*n)).collect();
 
         for flag in &info.flags {
             flag.apply_to_peer(self, &mut peer)
@@ -376,11 +370,7 @@ impl WireguardNetworkInfo {
     pub fn map_to_interface(&self, info: &PeerInfo) -> Result<Interface, String> {
         let mut interface = info.derive_interface()?;
 
-        interface.address = self
-            .networks
-            .iter()
-            .map(|f| *self.peer_ips[f].get_by_left(&info.id).unwrap())
-            .collect::<Vec<_>>();
+        interface.address = info.ips.clone();
 
         for flag in &info.flags {
             flag.apply_to_interface(self, &mut interface)
@@ -459,35 +449,39 @@ impl WireguardNetworkInfo {
         self.flags.iter().any(|f| f.as_ref() == flag_name)
     }
 
-    fn get_free_net_address_v4(&self, net: Ipv4Network, num: u32) -> Result<Ipv4Addr, String> {
+    fn get_free_net_address_v4(&self, net: Ipv4Network) -> Result<Ipv4Addr, String> {
         let no_free_ip_left = Err(std::format!("No more unreserved IPs left in {}", net));
-        let mut ip = u32::from(net.ip()) + num;
-        let is_taken = |ip: u32| {
-            self.peer_ips
-                .get(&IpNetwork::V4(net))
-                .unwrap_or(&Box::new(BiMap::default()))
-                .contains_right(&IpAddr::V4(ip.into()))
-        };
-        loop {
-            if let Some(n) = self.ignored_ipv4.iter().find(|&&n| n.contains(ip.into())) {
-                // going to first ip after end of ignored subnet
-                ip = u32::from(n.ip()) + n.size()
-            }
-            // skip already taken IPs
-            while net.contains(ip.into()) && is_taken(ip) {
-                ip += 1;
-            }
-            if !net.contains(ip.into()) {
+        let net_ip = net.ip();
+        let mut ip = self
+            .peers
+            .iter()
+            .flat_map(|peer| &peer.ips)
+            .filter_map(|ip| {
+                if let IpAddr::V4(ipv4) = ip {
+                    Some(ipv4)
+                } else {
+                    None
+                }
+            })
+            .max()
+            .unwrap_or_else(|| &net_ip)
+            .apply(|&ip| next_ipv4(ip));
+
+        while let Some(n) = self.ignored_ipv4.iter().find(|n| n.contains(ip.into())) {
+            // This way we can only increase IP
+            // because overlaps => end of range is greater
+            let end = u32::from(n.ip()) + n.size();
+            if end == 0 {
                 return no_free_ip_left;
-            } else if self.ignored_ipv4.iter().all(|&n| !n.contains(ip.into())) {
-                return Ok(ip.into());
             }
+            ip = (u32::from(n.ip()) + n.size()).into()
         }
+        Ok(ip)
     }
 
-    pub fn get_free_net_address(&self, net: IpNetwork, num: u128) -> IpAddr {
+    pub fn get_free_net_address(&self, net: IpNetwork) -> IpAddr {
         let addr = match net {
-            IpNetwork::V4(net) => self.get_free_net_address_v4(net, num.try_into().unwrap()),
+            IpNetwork::V4(net) => self.get_free_net_address_v4(net),
             IpNetwork::V6(_) => todo!(),
         };
         match addr {
@@ -497,34 +491,14 @@ impl WireguardNetworkInfo {
     }
 }
 
+fn next_ipv4(ip: Ipv4Addr) -> Ipv4Addr {
+    (u32::from(ip) + 1).into()
+}
+
 pub fn as_network(addr: IpAddr) -> IpNetwork {
     match addr {
         IpAddr::V4(_) => IpNetwork::new(addr, 32).unwrap(),
         IpAddr::V6(_) => IpNetwork::new(addr, 128).unwrap(),
-    }
-}
-
-fn get_network_address_v4(net: Ipv4Network, num: u32) -> Ipv4Addr {
-    assert!(net.size() > num);
-    Ipv4Addr::from(u32::from_be_bytes(net.ip().octets()) | (num & (!0u32 >> net.prefix())))
-}
-
-fn get_network_address_v6(net: Ipv6Network, num: u128) -> Ipv6Addr {
-    assert!(net.size() > num);
-    Ipv6Addr::from(u128::from_be_bytes(net.ip().octets()) | (num & (!0u128 >> net.prefix())))
-}
-
-pub fn get_network_address_as_network(net: IpNetwork, num: u128) -> IpNetwork {
-    match get_network_address(net, num) {
-        a @ IpAddr::V4(_) => IpNetwork::new(a, 32).unwrap(),
-        a @ IpAddr::V6(_) => IpNetwork::new(a, 128).unwrap(),
-    }
-}
-
-pub fn get_network_address(net: IpNetwork, num: u128) -> IpAddr {
-    match net {
-        IpNetwork::V4(n) => IpAddr::V4(get_network_address_v4(n, num.try_into().unwrap())),
-        IpNetwork::V6(n) => IpAddr::V6(get_network_address_v6(n, num.try_into().unwrap())),
     }
 }
 

@@ -7,9 +7,8 @@ extern crate serde_json;
 use crate::configs::nix::KeyFileExportConfig;
 use crate::configs::ConfigType;
 use crate::configs::{ban_ip_subnet, check_endpoint};
-use bimap::BiMap;
 use ipnetwork::IpNetwork;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::io::Write;
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -73,7 +72,6 @@ fn command_init_config(matches: &clap::ArgMatches) -> configs::WireguardNetworkI
         networks: vec![net],
         flags: vec![],
         peers: vec![],
-        peer_ips: [(net, Box::new(BiMap::default()))].into(),
         ignored_ipv4: HashSet::new(),
         ignored_ipv6: HashSet::new(),
     }
@@ -149,21 +147,15 @@ fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Arg
         id: peer_id,
         private_key: wg_tools::gen_private_key(),
         flags: vec![],
+        ips: vec![],
     };
 
     parse_peer_edit_command(&mut peer, matches)?;
 
-    cfg.peers.append(&mut vec![peer]);
-
-    let addresses: Vec<IpAddr> = cfg
-        .networks
-        .iter()
-        .map(|&net| cfg.get_free_net_address(net, peer_id))
-        .collect();
-
-    for ((_, peer_ips), addr) in cfg.peer_ips.iter_mut().zip(addresses) {
-        peer_ips.insert(peer_id, addr);
+    for net in &cfg.networks {
+        peer.ips.push(cfg.get_free_net_address(*net));
     }
+    cfg.peers.append(&mut vec![peer]);
 
     info!("Peer added!");
 
