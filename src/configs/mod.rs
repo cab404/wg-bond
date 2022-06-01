@@ -1,10 +1,9 @@
 use crate::wg_tools;
-use apply::Apply;
 use ipnetwork::{IpNetwork, Ipv4Network, Ipv6Network};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::iter::*;
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 use strum_macros::AsRefStr;
 use url::Host;
@@ -449,50 +448,58 @@ impl WireguardNetworkInfo {
         self.flags.iter().any(|f| f.as_ref() == flag_name)
     }
 
-    fn get_free_net_address_v4(&self, net: Ipv4Network) -> Result<Ipv4Addr, String> {
-        let no_free_ip_left = Err(std::format!("No more unreserved IPs left in {}", net));
-        let net_ip = net.ip();
-        let mut ip = self
-            .peers
-            .iter()
-            .flat_map(|peer| &peer.ips)
-            .filter_map(|ip| {
-                if let IpAddr::V4(ipv4) = ip {
-                    Some(ipv4)
-                } else {
-                    None
-                }
-            })
-            .max()
-            .unwrap_or_else(|| &net_ip)
-            .apply(|&ip| next_ipv4(ip));
-
+    fn first_unignored_ipv4(&self, ip: Ipv4Addr) -> Option<Ipv4Addr> {
+        let mut ip = ip;
         while let Some(n) = self.ignored_ipv4.iter().find(|n| n.contains(ip.into())) {
             // This way we can only increase IP
             // because overlaps => end of range is greater
             let end = u32::from(n.ip()) + n.size();
             if end == 0 {
-                return no_free_ip_left;
+                return Option::None;
             }
-            ip = (u32::from(n.ip()) + n.size()).into()
+            ip = end.into()
         }
-        Ok(ip)
+        Some(ip)
     }
 
-    pub fn get_free_net_address(&self, net: IpNetwork) -> IpAddr {
-        let addr = match net {
-            IpNetwork::V4(net) => self.get_free_net_address_v4(net),
-            IpNetwork::V6(_) => todo!(),
-        };
-        match addr {
-            Ok(addr) => IpAddr::V4(addr),
-            Err(err) => panic!("{}", err),
+    fn first_unignored_ipv6(&self, ip: Ipv6Addr) -> Option<Ipv6Addr> {
+        let mut ip = ip;
+        while let Some(n) = self.ignored_ipv6.iter().find(|n| n.contains(ip.into())) {
+            let end = u128::from(n.ip()) + n.size();
+            if end == 0 {
+                return Option::None;
+            }
+            ip = end.into()
         }
+        Some(ip)
+    }
+
+    /// Allocate free IP in specified network
+    pub fn get_free_net_address(&self, net: IpNetwork) -> IpAddr {
+        let is_ipv6 = net.is_ipv6();
+        let net_ip = net.ip();
+        let ip = self
+            .peers
+            .iter()
+            .flat_map(|peer| &peer.ips)
+            .filter(|ip| ip.is_ipv4() && !is_ipv6 || ip.is_ipv6() && is_ipv6)
+            .max()
+            .unwrap_or_else(|| &net_ip);
+
+        match ip {
+            IpAddr::V4(ip) => self.first_unignored_ipv4(next_ipv4(*ip)).map(IpAddr::V4),
+            IpAddr::V6(ip) => self.first_unignored_ipv6(next_ipv6(*ip)).map(IpAddr::V6),
+        }
+        .unwrap_or_else(|| panic!("No more unreserved IPs left in {}", net))
     }
 }
 
 fn next_ipv4(ip: Ipv4Addr) -> Ipv4Addr {
     (u32::from(ip) + 1).into()
+}
+
+fn next_ipv6(ip: Ipv6Addr) -> Ipv6Addr {
+    (u128::from(ip) + 1).into()
 }
 
 pub fn as_network(addr: IpAddr) -> IpNetwork {

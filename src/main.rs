@@ -461,6 +461,32 @@ fn main() {
         Ok(())
     }
 
+    fn ignore_range_common<T, Sup: Fn(&T, &T) -> bool, Sub: Fn(&T, &T) -> bool>(
+        ignored: &mut HashSet<T>,
+        to_ignore: T,
+        is_supernet: Sup,
+        is_subnet: Sub,
+    ) where
+        T: std::fmt::Display + Clone + std::cmp::Eq + std::hash::Hash,
+    {
+        if let Some(ex) = ignored
+            .iter()
+            .find(|inner| is_subnet(inner, &to_ignore))
+            .cloned()
+        {
+            println!(
+                "An already ignored subnet {} will now be covered by {}",
+                ex, to_ignore
+            );
+            ignored.remove(&ex);
+            ignored.insert(to_ignore);
+        } else if let Some(ex) = ignored.iter().find(|outer| is_supernet(outer, &to_ignore)) {
+            println!("A supernet {} covering given net is already ignored", ex)
+        } else {
+            ignored.insert(to_ignore);
+        }
+    }
+
     fn command_ignore_range(
         cfg: &mut configs::WireguardNetworkInfo,
         matches: &clap::ArgMatches,
@@ -468,30 +494,18 @@ fn main() {
         let s = matches.value_of("range").ok_or("".to_string())?;
         let range = IpNetwork::from_str(s).map_err(|f| f.to_string())?;
         match range {
-            IpNetwork::V4(range) => {
-                if let Some(ex) = cfg
-                    .ignored_ipv4
-                    .iter()
-                    .find(|inner| inner.is_subnet_of(range))
-                    .cloned()
-                {
-                    println!(
-                        "An already ignored subnet {} will now be covered by {}",
-                        ex, range
-                    );
-                    cfg.ignored_ipv4.remove(&ex);
-                    cfg.ignored_ipv4.insert(range);
-                } else if let Some(ex) = cfg
-                    .ignored_ipv4
-                    .iter()
-                    .find(|outer| outer.is_supernet_of(range))
-                {
-                    println!("A supernet {} covering given net is already ignored", ex)
-                } else {
-                    cfg.ignored_ipv4.insert(range);
-                }
-            }
-            IpNetwork::V6(_) => todo!(),
+            IpNetwork::V4(range) => ignore_range_common(
+                &mut cfg.ignored_ipv4,
+                range,
+                |a, b| a.is_supernet_of(*b),
+                |a, b| a.is_subnet_of(*b),
+            ),
+            IpNetwork::V6(range) => ignore_range_common(
+                &mut cfg.ignored_ipv6,
+                range,
+                |a, b| a.is_supernet_of(*b),
+                |a, b| a.is_subnet_of(*b),
+            ),
         }
         Ok(())
     }

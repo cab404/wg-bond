@@ -2,75 +2,43 @@
   "name": "net",
   "flags": [],
   "networks": [
-    "10.0.0.0/24"
+    "1::/120"
   ],
   "peers": [
     {
-      "name": "user1",
-      "private_key": "8IpkeS76Ju2KaJ75tEnn0qtL7jZ1j/PSHasuVMYYd0A=",
+      "name": "1",
+      "private_key": "6E+2SjAegNt9RGCJWY1HltfhwGxRFPKFHsIptjmsoWI=",
       "id": 1,
       "flags": [],
       "endpoint": null,
       "ips": [
-        "10.0.0.4"
+        "1::4"
       ]
     },
     {
-      "name": "user2",
-      "private_key": "qAEq9Ef2/ef6sFyd5FJP8V+MFEMmP39fmL099IHIXFE=",
+      "name": "2",
+      "private_key": "IBCsA6ZRO+VbwP8EJKRsg+gjzFMiQGOxZjMmHQojvHQ=",
       "id": 2,
-      "flags": [
-        {
-          "Gateway": {
-            "ignore_local_networks": true
-          }
-        }
-      ],
+      "flags": [],
       "endpoint": null,
       "ips": [
-        "10.0.0.5"
+        "1::5"
       ]
     },
     {
-      "name": "user3",
-      "private_key": "wO3ycsTjJTh44fcBUx2RG347ejTPPK1bAs6fbjM8n2s=",
+      "name": "3",
+      "private_key": "KOVREmR7ArC5kq8DdcmwHLJc1PRMZjIPmlxG5h89MEQ=",
       "id": 3,
-      "flags": [
-        {
-          "Keepalive": {
-            "keepalive": 30
-          }
-        }
-      ],
-      "endpoint": null,
-      "ips": [
-        "10.0.0.6"
-      ]
-    },
-    {
-      "name": "user4",
-      "private_key": "OMT8Q8xeph+33DEouvLM/S7F/v2Gk5i1li4yWN0gpXM=",
-      "id": 4,
       "flags": [],
       "endpoint": null,
       "ips": [
-        "10.0.0.7"
-      ]
-    },
-    {
-      "name": "user5",
-      "private_key": "oNsc9ki6dtUlSeiV3145UWUt+33PCncmMnasgDmjMEs=",
-      "id": 5,
-      "flags": [],
-      "endpoint": null,
-      "ips": [
-        "10.0.0.12"
+        "1::8"
       ]
     }
   ],
-  "ignored_ipv4": [
-    "10.0.0.0/30",
-    "10.0.0.8/30"
-  ],
-  "ignored_ipv6": []
+  "ignored_ipv4": [],
+  "ignored_ipv6": [
+    "1::6/127",
+    "1::/126"
+  ]
 }

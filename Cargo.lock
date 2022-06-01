@@ -12,12 +12,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "apply"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f47b57fc4521e3cae26a4d45b5227f8fadee4c345be0fefd8d5d1711afb8aeb9"
-
-[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -563,7 +557,6 @@ checksum = "fd6fbd9a79829dd1ad0cc20627bf1ed606756a7f77edff7b66b7064f9cb327c6"
 name = "wg-bond"
 version = "0.3.0"
 dependencies = [
- "apply",
  "base64",
  "clap",
  "ipnetwork",
