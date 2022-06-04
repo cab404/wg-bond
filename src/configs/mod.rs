@@ -448,34 +448,34 @@ impl WireguardNetworkInfo {
         self.flags.iter().any(|f| f.as_ref() == flag_name)
     }
 
-    fn first_unignored_ipv4(&self, ip: Ipv4Addr) -> Option<Ipv4Addr> {
+    fn first_unignored_ipv4(&self, ip: Ipv4Addr, net: Ipv4Network) -> Option<Ipv4Addr> {
         let mut ip = ip;
         while let Some(n) = self.ignored_ipv4.iter().find(|n| n.contains(ip.into())) {
             // This way we can only increase IP
             // because overlaps => end of range is greater
-            let end = u32::from(n.ip()) + n.size();
-            if end == 0 {
-                return Option::None;
-            }
-            ip = end.into()
+            ip = u32::from(n.ip()).checked_add(n.size())?.into();
         }
-        Some(ip)
+        if net.contains(ip) {
+            Some(ip)
+        } else {
+            None
+        }
     }
 
-    fn first_unignored_ipv6(&self, ip: Ipv6Addr) -> Option<Ipv6Addr> {
+    fn first_unignored_ipv6(&self, ip: Ipv6Addr, net: Ipv6Network) -> Option<Ipv6Addr> {
         let mut ip = ip;
         while let Some(n) = self.ignored_ipv6.iter().find(|n| n.contains(ip.into())) {
-            let end = u128::from(n.ip()) + n.size();
-            if end == 0 {
-                return Option::None;
-            }
-            ip = end.into()
+            ip = u128::from(n.ip()).checked_add(n.size())?.into();
         }
-        Some(ip)
+        if net.contains(ip) {
+            Some(ip)
+        } else {
+            None
+        }
     }
 
     /// Allocate free IP in specified network
-    pub fn get_free_net_address(&self, net: IpNetwork) -> IpAddr {
+    pub fn get_free_net_address(&self, net: IpNetwork) -> Result<IpAddr, String> {
         let is_ipv6 = net.is_ipv6();
         let net_ip = net.ip();
         let ip = self
@@ -486,20 +486,25 @@ impl WireguardNetworkInfo {
             .max()
             .unwrap_or_else(|| &net_ip);
 
-        match ip {
-            IpAddr::V4(ip) => self.first_unignored_ipv4(next_ipv4(*ip)).map(IpAddr::V4),
-            IpAddr::V6(ip) => self.first_unignored_ipv6(next_ipv6(*ip)).map(IpAddr::V6),
+        match (ip, net) {
+            (IpAddr::V4(ip), IpNetwork::V4(net)) => next_ipv4(*ip)
+                .and_then(|ip| self.first_unignored_ipv4(ip, net))
+                .map(IpAddr::V4),
+            (IpAddr::V6(ip), IpNetwork::V6(net)) => next_ipv6(*ip)
+                .and_then(|ip| self.first_unignored_ipv6(ip, net))
+                .map(IpAddr::V6),
+            _ => panic!("Internal error"),
         }
-        .unwrap_or_else(|| panic!("No more unreserved IPs left in {}", net))
+        .ok_or(std::format!("No more unreserved IPs left in {}", net))
     }
 }
 
-fn next_ipv4(ip: Ipv4Addr) -> Ipv4Addr {
-    (u32::from(ip) + 1).into()
+fn next_ipv4(ip: Ipv4Addr) -> Option<Ipv4Addr> {
+    u32::from(ip).checked_add(1).map(u32::into)
 }
 
-fn next_ipv6(ip: Ipv6Addr) -> Ipv6Addr {
-    (u128::from(ip) + 1).into()
+fn next_ipv6(ip: Ipv6Addr) -> Option<Ipv6Addr> {
+    u128::from(ip).checked_add(1).map(u128::into)
 }
 
 pub fn as_network(addr: IpAddr) -> IpNetwork {

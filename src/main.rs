@@ -153,7 +153,7 @@ fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Arg
     parse_peer_edit_command(&mut peer, matches)?;
 
     for net in &cfg.networks {
-        peer.ips.push(cfg.get_free_net_address(*net));
+        peer.ips.push(cfg.get_free_net_address(*net)?);
     }
     cfg.peers.append(&mut vec![peer]);
 
@@ -332,99 +332,94 @@ fn export_params<'a>(subcommand: clap::Command<'a>) -> clap::Command<'a> {
         )
 }
 
-fn main() {
-    pretty_env_logger::init();
-    // std::panic::set_hook(Box::new(panic_hook));
-
-    let args = clap::Command::new("wg-bond")
-        .version("0.3.0")
-        .about("Wireguard configuration manager")
-        .author("Vladimir Serov <cab404>")
-        .long_about("Wireguard configuration manager.\nSources: https://gitlab.com/cab404/wg-bond.")
-        .subcommand_required(true)
-        .arg(
-            clap::Arg::new("config")
-                .short('c')
-                .long("config")
-                .help("Config file to use")
-                .value_name("FILE")
-                .default_value("./wg-bond.json")
-                .takes_value(true)
-                .use_value_delimiter(false),
-        )
-        .subcommand(
-            clap::Command::new("init")
-                .about("Initializes a config file")
-                .arg(clap::Arg::new("name").help("Network name").required(true))
-                .arg(
-                    clap::Arg::new("network")
-                        .short('n')
-                        .long("network")
-                        .help("Network for peers to use")
-                        .value_name("IP/MASK")
-                        .validator(|f| {
-                            IpNetwork::from_str(f)
-                                .map(|_| ())
-                                .map_err(|e| e.to_string())
-                        })
-                        .default_value("10.0.0.0/24")
-                        .use_value_delimiter(false)
-                        .takes_value(true),
-                ),
-        )
-        .subcommand(
-            edit_params(clap::Command::new("add"))
-                .about("Adds a new peer to the network")
-                .arg(
-                    clap::Arg::new("name")
-                        .help("Name for a new peer")
-                        .required(true),
-                ),
-        )
-        .subcommand(clap::Command::new("list").about("Lists all added peers"))
-        .subcommand(
-            edit_params(clap::Command::new("edit"))
-                .about("Edits existing peer")
-                .arg(
-                    clap::Arg::new("name")
-                        .help("Name of a new peer")
-                        .required(true),
-                ),
-        )
-        .subcommand(
-            export_params(clap::Command::new("nix"))
-                .arg(
-                    clap::Arg::new("separate-secrets")
-                    .long("separate-secrets")
-                    .takes_value(false)
-                    .help(
-                        "Whether to use external secrets, to avoid putting secrets in the store",
-                    ),
-                )
-                .about("Generates Nix configs"),
-        )
-        .subcommand(clap::Command::new("nixops").about("Generates NixOps config for all peers"))
-        .subcommand(
-            clap::Command::new("secrets")
-                .about("Generates secret files for all peers")
-                .arg(
-                    clap::Arg::new("target")
-                        .help("Where to export the secrets")
-                        .default_value("./secrets"),
-                ),
-        )
-        .subcommand(clap::Command::new("hosts").about("Generates /etc/hosts for all peers"))
-        .subcommand(
-            clap::Command::new("rm").about("Deletes a peer").arg(
+fn main_app<'a>() -> clap::Command<'a> {
+    clap::Command::new("wg-bond")
+    .version("0.3.0")
+    .about("Wireguard configuration manager")
+    .author("Vladimir Serov <cab404>")
+    .long_about("Wireguard configuration manager.\nSources: https://gitlab.com/cab404/wg-bond.")
+    .subcommand_required(true)
+    .arg(
+        clap::Arg::new("config")
+            .short('c')
+            .long("config")
+            .help("Config file to use")
+            .value_name("FILE")
+            .default_value("./wg-bond.json")
+            .takes_value(true)
+            .use_value_delimiter(false),
+    )
+    .subcommand(
+        clap::Command::new("init")
+            .about("Initializes a config file")
+            .arg(clap::Arg::new("name").help("Network name").required(true))
+            .arg(
+                clap::Arg::new("network")
+                    .short('n')
+                    .long("network")
+                    .help("Network for peers to use")
+                    .value_name("IP/MASK")
+                    .validator(|f| {
+                        IpNetwork::from_str(f)
+                            .map(|_| ())
+                            .map_err(|e| e.to_string())
+                    })
+                    .default_value("10.0.0.0/24")
+                    .use_value_delimiter(false)
+                    .takes_value(true),
+            ),
+    )
+    .subcommand(
+        edit_params(clap::Command::new("add"))
+            .about("Adds a new peer to the network")
+            .arg(
+                clap::Arg::new("name")
+                    .help("Name for a new peer")
+                    .required(true),
+            ),
+    )
+    .subcommand(clap::Command::new("list").about("Lists all added peers"))
+    .subcommand(
+        edit_params(clap::Command::new("edit"))
+            .about("Edits existing peer")
+            .arg(
                 clap::Arg::new("name")
                     .help("Name of a new peer")
                     .required(true),
             ),
-        )
-        .subcommand(export_params(clap::Command::new("qr")).about("Generates QR code with config"))
-        .subcommand(export_params(clap::Command::new("conf")).about("Generates wg-quick configs"))
-        .subcommand(
-            clap::Command::new("ignore")
+    )
+    .subcommand(
+        export_params(clap::Command::new("nix"))
+            .arg(
+                clap::Arg::new("separate-secrets")
+                    .long("separate-secrets")
+                    .takes_value(false)
+                    .help("Whether to use external secrets, to avoid putting secrets in the store"),
+            )
+            .about("Generates Nix configs"),
+    )
+    .subcommand(clap::Command::new("nixops").about("Generates NixOps config for all peers"))
+    .subcommand(
+        clap::Command::new("secrets")
+            .about("Generates secret files for all peers")
+            .arg(
+                clap::Arg::new("target")
+                    .help("Where to export the secrets")
+                    .default_value("./secrets"),
+            ),
+    )
+    .subcommand(clap::Command::new("hosts").about("Generates /etc/hosts for all peers"))
+    .subcommand(
+        clap::Command::new("rm").about("Deletes a peer").arg(
+            clap::Arg::new("name")
+                .help("Name of a new peer")
+                .required(true),
+        ),
+    )
+    .subcommand(export_params(clap::Command::new("qr")).about("Generates QR code with config"))
+    .subcommand(export_params(clap::Command::new("conf")).about("Generates wg-quick configs"))
+    .subcommand(
+        clap::Command::new("ignore")
             .about("Sets IP ranges to ignore when generating IPs for peers")
             .arg(
                 clap::Arg::new("range")
@@ -434,10 +429,16 @@ fn main() {
                         IpNetwork::from_str(f)
                             .map(|_| ())
                             .map_err(|e| e.to_string())
-                    })
-            )
-        )
-        .get_matches();
+                    }),
+            ),
+    )
+}
+
+fn main() {
+    pretty_env_logger::init();
+    // std::panic::set_hook(Box::new(panic_hook));
+
+    let args = main_app().get_matches();
 
     let cfg_file = args.value_of("config").unwrap();
 
@@ -461,53 +462,15 @@ fn main() {
         Ok(())
     }
 
-    fn ignore_range_common<T, Sup: Fn(&T, &T) -> bool, Sub: Fn(&T, &T) -> bool>(
-        ignored: &mut HashSet<T>,
-        to_ignore: T,
-        is_supernet: Sup,
-        is_subnet: Sub,
-    ) where
-        T: std::fmt::Display + Clone + std::cmp::Eq + std::hash::Hash,
-    {
-        if let Some(ex) = ignored
-            .iter()
-            .find(|inner| is_subnet(inner, &to_ignore))
-            .cloned()
-        {
-            println!(
-                "An already ignored subnet {} will now be covered by {}",
-                ex, to_ignore
-            );
-            ignored.remove(&ex);
-            ignored.insert(to_ignore);
-        } else if let Some(ex) = ignored.iter().find(|outer| is_supernet(outer, &to_ignore)) {
-            println!("A supernet {} covering given net is already ignored", ex)
-        } else {
-            ignored.insert(to_ignore);
-        }
-    }
-
+    // panics if prefix of ignored network because of this issue:
+    // https://github.com/achanda/ipnetwork/issues/130
     fn command_ignore_range(
         cfg: &mut configs::WireguardNetworkInfo,
         matches: &clap::ArgMatches,
     ) -> RVoid {
         let s = matches.value_of("range").ok_or("".to_string())?;
         let range = IpNetwork::from_str(s).map_err(|f| f.to_string())?;
-        match range {
-            IpNetwork::V4(range) => ignore_range_common(
-                &mut cfg.ignored_ipv4,
-                range,
-                |a, b| a.is_supernet_of(*b),
-                |a, b| a.is_subnet_of(*b),
-            ),
-            IpNetwork::V6(range) => ignore_range_common(
-                &mut cfg.ignored_ipv6,
-                range,
-                |a, b| a.is_supernet_of(*b),
-                |a, b| a.is_subnet_of(*b),
-            ),
-        }
-        Ok(())
+        ignore_range(cfg, range)
     }
 
     fn commands(net: &mut configs::WireguardNetworkInfo, args: &clap::ArgMatches) -> RVoid {
@@ -563,3 +526,144 @@ fn main() {
         Err(e) => println!("{}", e),
     }
 }
+
+fn ignore_range_common<T, Sup: Fn(&T, &T) -> bool, Sub: Fn(&T, &T) -> bool>(
+    ignored: &mut HashSet<T>,
+    to_ignore: T,
+    is_supernet: Sup,
+    is_subnet: Sub,
+) where
+    T: std::fmt::Display + Clone + std::cmp::Eq + std::hash::Hash,
+{
+    if let Some(ex) = ignored
+        .iter()
+        .find(|inner| is_subnet(inner, &to_ignore))
+        .cloned()
+    {
+        println!(
+            "An already ignored subnet {} will now be covered by {}",
+            ex, to_ignore
+        );
+        ignored.remove(&ex);
+        ignored.insert(to_ignore);
+    } else if let Some(ex) = ignored.iter().find(|outer| is_supernet(outer, &to_ignore)) {
+        println!("A supernet {} covering given net is already ignored", ex)
+    } else {
+        ignored.insert(to_ignore);
+    }
+}
+
+fn ignore_range(cfg: &mut configs::WireguardNetworkInfo, range: IpNetwork) -> RVoid {
+    match range {
+        IpNetwork::V4(range) => ignore_range_common(
+            &mut cfg.ignored_ipv4,
+            range,
+            |a, b| a.is_supernet_of(*b),
+            |a, b| a.is_subnet_of(*b),
+        ),
+        IpNetwork::V6(range) => ignore_range_common(
+            &mut cfg.ignored_ipv6,
+            range,
+            |a, b| a.is_supernet_of(*b),
+            |a, b| a.is_subnet_of(*b),
+        ),
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::configs::{as_network, ban_ip_subnet, WireguardNetworkInfo};
+
+    use super::*;
+
+    fn new_config(ip_addr: &str) -> WireguardNetworkInfo {
+        let matches = main_app().get_matches_from(["wg-bond", "init", "testnet", "-n", ip_addr]);
+        let sub_matches = matches.subcommand_matches("init").unwrap();
+        command_init_config(&sub_matches)
+    }
+
+    fn add_peer(cfg: &mut WireguardNetworkInfo, name: &str) -> RVoid {
+        command_new_peer(
+            cfg,
+            main_app()
+                .get_matches_from(["wg-bond", "add", name])
+                .subcommand_matches("add")
+                .unwrap(),
+        )
+    }
+
+    #[test]
+    fn test_ignore_ipv4() {
+        let mut cfg = new_config("10.0.0.0/24");
+
+        ignore_range(&mut cfg, IpNetwork::from_str("10.0.0.1/32").unwrap()).unwrap();
+        ignore_range(&mut cfg, IpNetwork::from_str("10.0.0.3/32").unwrap()).unwrap();
+
+        add_peer(&mut cfg, "1").unwrap();
+        add_peer(&mut cfg, "2").unwrap();
+        let peer1 = cfg.peers.iter().find(|p| p.name == "1").unwrap();
+        let peer2 = cfg.peers.iter().find(|p| p.name == "2").unwrap();
+
+        assert_eq!(peer1.ips, vec![IpAddr::from_str("10.0.0.2").unwrap()]);
+        assert_eq!(peer2.ips, vec![IpAddr::from_str("10.0.0.4").unwrap()]);
+    }
+
+    #[test]
+    fn test_ignore_ipv6() {
+        let mut cfg = new_config("10::0/96");
+
+        ignore_range(&mut cfg, IpNetwork::from_str("10::0/127").unwrap()).unwrap();
+        ignore_range(&mut cfg, IpNetwork::from_str("10::4/127").unwrap()).unwrap();
+
+        add_peer(&mut cfg, "1").unwrap();
+        add_peer(&mut cfg, "2").unwrap();
+        add_peer(&mut cfg, "3").unwrap();
+        let peer1 = cfg.peers.iter().find(|p| p.name == "1").unwrap();
+        let peer2 = cfg.peers.iter().find(|p| p.name == "2").unwrap();
+        let peer3 = cfg.peers.iter().find(|p| p.name == "3").unwrap();
+
+        assert_eq!(peer1.ips, vec![IpAddr::from_str("10::2").unwrap()]);
+        assert_eq!(peer2.ips, vec![IpAddr::from_str("10::3").unwrap()]);
+        assert_eq!(peer3.ips, vec![IpAddr::from_str("10::6").unwrap()]);
+    }
+
+    #[test]
+    fn test_no_free_ip() {
+        let mut cfg = new_config("10.0.0.0/32");
+        add_peer(&mut cfg, "1").expect_err("Expected no free IPs");
+    }
+
+    #[test]
+    fn test_one_free_ip() {
+        let net = "10.0.0.0/24";
+        let mut cfg = new_config(net);
+        let free_ip = IpAddr::from_str("10.0.0.25").unwrap();
+        for range in ban_ip_subnet(
+            &vec![IpNetwork::from_str(net).unwrap()],
+            &as_network(free_ip),
+        ) {
+            ignore_range(&mut cfg, range).unwrap();
+        }
+
+        add_peer(&mut cfg, "1").unwrap();
+        let peer1 = cfg.peers.iter().find(|p| p.name == "1").unwrap();
+        assert_eq!(peer1.ips, vec![free_ip]);
+        add_peer(&mut cfg, "2").expect_err("Expected no free IPs");
+    }
+
+    #[test]
+    fn test_ip_u32_limit_reached() {
+        let net = "0.0.0.0/0";
+        let mut cfg = new_config(net);
+        ignore_range(&mut cfg, IpNetwork::from_str("0.0.0.0/1").unwrap()).unwrap();
+        ignore_range(&mut cfg, IpNetwork::from_str("128.0.0.0/1").unwrap()).unwrap();
+
+        add_peer(&mut cfg, "1").expect_err("Expected no free IPs");
+    }
+}
+
+// fn panic_hook(info: &std::panic::PanicInfo<'_>) {
+//     println!("We panicked.");
+//     println!("mowmow : {:?}", info.payload());
+// }
