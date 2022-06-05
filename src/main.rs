@@ -535,18 +535,20 @@ fn ignore_range_common<T, Sup: Fn(&T, &T) -> bool, Sub: Fn(&T, &T) -> bool>(
 ) where
     T: std::fmt::Display + Clone + std::cmp::Eq + std::hash::Hash,
 {
-    if let Some(ex) = ignored
+    let subranges = ignored
         .iter()
-        .find(|inner| is_subnet(inner, &to_ignore))
+        .filter(|inner| is_subnet(inner, &to_ignore))
         .cloned()
-    {
+        .collect::<Vec<_>>();
+
+    for inner in subranges {
         println!(
             "An already ignored subnet {} will now be covered by {}",
-            ex, to_ignore
+            inner, to_ignore
         );
-        ignored.remove(&ex);
-        ignored.insert(to_ignore);
-    } else if let Some(ex) = ignored.iter().find(|outer| is_supernet(outer, &to_ignore)) {
+        ignored.remove(&inner);
+    }
+    if let Some(ex) = ignored.iter().find(|outer| is_supernet(outer, &to_ignore)) {
         println!("A supernet {} covering given net is already ignored", ex)
     } else {
         ignored.insert(to_ignore);
@@ -573,6 +575,8 @@ fn ignore_range(cfg: &mut configs::WireguardNetworkInfo, range: IpNetwork) -> RV
 
 #[cfg(test)]
 mod tests {
+    use ipnetwork::Ipv4Network;
+
     use crate::configs::{as_network, ban_ip_subnet, WireguardNetworkInfo};
 
     use super::*;
@@ -660,6 +664,31 @@ mod tests {
         ignore_range(&mut cfg, IpNetwork::from_str("128.0.0.0/1").unwrap()).unwrap();
 
         add_peer(&mut cfg, "1").expect_err("Expected no free IPs");
+    }
+
+    #[test]
+    fn test_overlapping_ranges_1() {
+        let net = "10.0.0.0/16";
+        let mut cfg = new_config(net);
+        ignore_range(&mut cfg, IpNetwork::from_str("10.0.0.0/24").unwrap()).unwrap();
+        ignore_range(&mut cfg, IpNetwork::from_str("10.0.0.0/28").unwrap()).unwrap();
+        assert_eq!(
+            cfg.ignored_ipv4,
+            HashSet::from_iter([Ipv4Network::from_str("10.0.0.0/24").unwrap()])
+        );
+    }
+
+    #[test]
+    fn test_overlapping_ranges_2() {
+        let net = "10.0.0.0/16";
+        let mut cfg = new_config(net);
+        ignore_range(&mut cfg, IpNetwork::from_str("10.0.0.0/24").unwrap()).unwrap();
+        ignore_range(&mut cfg, IpNetwork::from_str("10.0.1.0/24").unwrap()).unwrap();
+        ignore_range(&mut cfg, IpNetwork::from_str("10.0.0.0/16").unwrap()).unwrap();
+        assert_eq!(
+            cfg.ignored_ipv4,
+            HashSet::from_iter([Ipv4Network::from_str("10.0.0.0/16").unwrap()])
+        );
     }
 }
 
