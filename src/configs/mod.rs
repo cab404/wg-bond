@@ -474,23 +474,29 @@ impl WireguardNetworkInfo {
         }
     }
 
+    pub fn assigned_ips(&self) -> HashSet<IpAddr> {
+        self.peers
+            .iter()
+            .flat_map(|peer| peer.ips.clone())
+            .collect()
+    }
+
     /// Allocate free IP in specified network
     pub fn get_free_net_address(&self, net: IpNetwork) -> Result<IpAddr, String> {
         let is_ipv6 = net.is_ipv6();
         let net_ip = net.ip();
         let ip = self
-            .peers
-            .iter()
-            .flat_map(|peer| &peer.ips)
+            .assigned_ips()
+            .into_iter()
             .filter(|ip| ip.is_ipv4() && !is_ipv6 || ip.is_ipv6() && is_ipv6)
             .max()
-            .unwrap_or_else(|| &net_ip);
+            .unwrap_or_else(|| net_ip);
 
         match (ip, net) {
-            (IpAddr::V4(ip), IpNetwork::V4(net)) => next_ipv4(*ip)
+            (IpAddr::V4(ip), IpNetwork::V4(net)) => next_ipv4(ip)
                 .and_then(|ip| self.first_unignored_ipv4(ip, net))
                 .map(IpAddr::V4),
-            (IpAddr::V6(ip), IpNetwork::V6(net)) => next_ipv6(*ip)
+            (IpAddr::V6(ip), IpNetwork::V6(net)) => next_ipv6(ip)
                 .and_then(|ip| self.first_unignored_ipv6(ip, net))
                 .map(IpAddr::V6),
             _ => panic!("Internal error"),

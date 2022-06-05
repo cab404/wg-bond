@@ -556,6 +556,15 @@ fn ignore_range_common<T, Sup: Fn(&T, &T) -> bool, Sub: Fn(&T, &T) -> bool>(
 }
 
 fn ignore_range(cfg: &mut configs::WireguardNetworkInfo, range: IpNetwork) -> RVoid {
+    let contains = |ip: &IpAddr| match (*ip, range) {
+        (IpAddr::V4(ip), IpNetwork::V4(range)) => range.contains(ip),
+        (IpAddr::V6(ip), IpNetwork::V6(range)) => range.contains(ip),
+        _ => false,
+    };
+    if let Some(_) = cfg.assigned_ips().into_iter().find(contains) {
+        return Err("Aborting: there are assigned IPs in specified range.".to_string());
+    }
+
     match range {
         IpNetwork::V4(range) => ignore_range_common(
             &mut cfg.ignored_ipv4,
@@ -689,6 +698,15 @@ mod tests {
             cfg.ignored_ipv4,
             HashSet::from_iter([Ipv4Network::from_str("10.0.0.0/16").unwrap()])
         );
+    }
+
+    #[test]
+    fn test_ignore_assigned() {
+        let net = "10.0.0.0/24";
+        let mut cfg = new_config(net);
+        add_peer(&mut cfg, "1").unwrap();
+        ignore_range(&mut cfg, IpNetwork::from_str("10.0.0.0/28").unwrap())
+            .expect_err("Expected abort");
     }
 }
 
