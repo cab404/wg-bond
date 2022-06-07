@@ -527,8 +527,74 @@ pub trait ConfigType {
     fn write_config(net: WireguardConfiguration, options: Self::ExportConfig) -> String;
 }
 
-pub fn ban_ip_subnet(ns: &Vec<IpNetwork>, banned: &IpNetwork) -> Vec<IpNetwork> {
-    ns.iter().flat_map(|n| exclude_subnet(*n, banned)).collect()
+pub trait IpNetDifference: Sized + core::hash::Hash + std::cmp::Eq {
+    fn subtract(&self, other: &Self) -> HashSet<Self>;
+    fn subnets(&self) -> (Self, Self);
+
+    fn subtract_all(minuend: &HashSet<Self>, subtrahend: &Self) -> HashSet<Self> {
+        minuend
+            .iter()
+            .flat_map(|n| n.subtract(subtrahend))
+            .collect()
+    }
+}
+
+impl IpNetDifference for Ipv4Network {
+    fn subtract(&self, other: &Self) -> HashSet<Self> {
+        use std::cmp;
+
+        let min_pref = cmp::min(self.prefix(), other.prefix());
+        let prefs_equal =
+            first_nbits32(self.ip().into(), min_pref) == first_nbits32(other.ip().into(), min_pref);
+        if other.prefix() == min_pref && prefs_equal {
+            HashSet::new()
+        } else if !prefs_equal {
+            HashSet::from_iter([*self])
+        } else {
+            let mut filtered: HashSet<Self> = HashSet::new();
+            let (n1, n2) = self.subnets();
+            filtered.extend(&n1.subtract(other));
+            filtered.extend(&n2.subtract(other));
+            filtered
+        }
+    }
+
+    fn subnets(&self) -> (Self, Self) {
+        let new_prefix = self.prefix() + 1;
+        let first = u32::from(self.ip()) & !(1 << (32 - new_prefix));
+        let second = u32::from(self.ip()) | (1 << (32 - new_prefix));
+        let to_net = |addr: u32| Ipv4Network::new(addr.into(), new_prefix).unwrap();
+        (to_net(first), to_net(second))
+    }
+}
+
+impl IpNetDifference for Ipv6Network {
+    fn subtract(&self, other: &Self) -> HashSet<Self> {
+        use std::cmp;
+
+        let min_pref = cmp::min(self.prefix(), other.prefix());
+        let prefs_equal = first_nbits128(self.ip().into(), min_pref)
+            == first_nbits128(other.ip().into(), min_pref);
+        if other.prefix() == min_pref && prefs_equal {
+            HashSet::new()
+        } else if !prefs_equal {
+            HashSet::from_iter([*self])
+        } else {
+            let mut filtered: HashSet<Self> = HashSet::new();
+            let (n1, n2) = self.subnets();
+            filtered.extend(&n1.subtract(other));
+            filtered.extend(&n2.subtract(other));
+            filtered
+        }
+    }
+
+    fn subnets(&self) -> (Self, Self) {
+        let new_prefix = self.prefix() + 1;
+        let first = u128::from(self.ip()) & !(1 << (128 - new_prefix));
+        let second = u128::from(self.ip()) | (1 << (128 - new_prefix));
+        let to_net = |addr: u128| Ipv6Network::new(addr.into(), new_prefix).unwrap();
+        (to_net(first), to_net(second))
+    }
 }
 
 fn first_nbits32(x: u32, n: u8) -> u32 {
@@ -537,56 +603,4 @@ fn first_nbits32(x: u32, n: u8) -> u32 {
 
 fn first_nbits128(x: u128, n: u8) -> u128 {
     x & (u128::MAX << (128 - n))
-}
-
-fn subnets(net: IpNetwork) -> (IpNetwork, IpNetwork) {
-    let new_prefix = net.prefix() + 1;
-    match net {
-        IpNetwork::V4(n) => {
-            let first = u32::from(n.ip()) & !(1 << (32 - new_prefix));
-            let second = u32::from(n.ip()) | (1 << (32 - new_prefix));
-            (
-                IpNetwork::V4(Ipv4Network::new(first.into(), new_prefix).unwrap()),
-                IpNetwork::V4(Ipv4Network::new(second.into(), new_prefix).unwrap()),
-            )
-        }
-        IpNetwork::V6(n) => {
-            let first = u128::from(n.ip()) & !(1 << (128 - new_prefix));
-            let second = u128::from(n.ip()) | (1 << (128 - new_prefix));
-            (
-                IpNetwork::V6(Ipv6Network::new(first.into(), new_prefix).unwrap()),
-                IpNetwork::V6(Ipv6Network::new(second.into(), new_prefix).unwrap()),
-            )
-        }
-    }
-}
-
-fn exclude_subnet(n: IpNetwork, n_to_exclude: &IpNetwork) -> Vec<IpNetwork> {
-    use std::cmp;
-
-    let n_pref = n.prefix();
-    let nx_pref = n_to_exclude.prefix();
-
-    let min_pref = cmp::min(n_pref, nx_pref);
-    let prefs_equal = match (n, &n_to_exclude) {
-        (IpNetwork::V4(n), IpNetwork::V4(nx)) => {
-            first_nbits32(n.ip().into(), min_pref) == first_nbits32(nx.ip().into(), min_pref)
-        }
-        (IpNetwork::V6(n), IpNetwork::V6(nx)) => {
-            first_nbits128(n.ip().into(), min_pref) == first_nbits128(nx.ip().into(), min_pref)
-        }
-        _ => return vec![n],
-    };
-    if nx_pref == min_pref && prefs_equal {
-        vec![]
-    } else if !prefs_equal {
-        vec![n]
-    } else {
-        let mut filtered: Vec<IpNetwork> = vec![];
-
-        let (n1, n2) = subnets(n);
-        filtered.append(&mut exclude_subnet(n1, n_to_exclude));
-        filtered.append(&mut exclude_subnet(n2, n_to_exclude));
-        filtered
-    }
 }

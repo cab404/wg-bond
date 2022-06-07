@@ -6,7 +6,7 @@ extern crate serde_json;
 
 use crate::configs::nix::KeyFileExportConfig;
 use crate::configs::ConfigType;
-use crate::configs::{ban_ip_subnet, check_endpoint};
+use crate::configs::{check_endpoint, IpNetDifference};
 use ipnetwork::IpNetwork;
 use std::collections::HashSet;
 use std::io::Write;
@@ -15,8 +15,8 @@ use std::str::FromStr;
 
 use configs::conf::ConfFile;
 use configs::nix::NixConf;
-use configs::nixops;
 use configs::{hosts::export_hosts, qr::QRConfig};
+use configs::{nixops, WireguardNetworkInfo};
 
 use clap;
 
@@ -332,6 +332,12 @@ fn export_params<'a>(subcommand: clap::Command<'a>) -> clap::Command<'a> {
         )
 }
 
+fn ipnetwork_validator(s: &str) -> RVoid {
+    IpNetwork::from_str(s)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 fn main_app<'a>() -> clap::Command<'a> {
     clap::Command::new("wg-bond")
     .version("0.3.0")
@@ -359,11 +365,7 @@ fn main_app<'a>() -> clap::Command<'a> {
                     .long("network")
                     .help("Network for peers to use")
                     .value_name("IP/MASK")
-                    .validator(|f| {
-                        IpNetwork::from_str(f)
-                            .map(|_| ())
-                            .map_err(|e| e.to_string())
-                    })
+                    .validator(ipnetwork_validator)
                     .default_value("10.0.0.0/24")
                     .use_value_delimiter(false)
                     .takes_value(true),
@@ -420,17 +422,25 @@ fn main_app<'a>() -> clap::Command<'a> {
     .subcommand(export_params(clap::Command::new("conf")).about("Generates wg-quick configs"))
     .subcommand(
         clap::Command::new("ignore")
-            .about("Sets IP ranges to ignore when generating IPs for peers")
+            .about("Sets IP range to ignore when generating IPs for peers")
             .arg(
                 clap::Arg::new("range")
                     .help("IP range to ignore")
                     .required(true)
-                    .validator(|f| {
-                        IpNetwork::from_str(f)
-                            .map(|_| ())
-                            .map_err(|e| e.to_string())
-                    }),
+                    .value_name("IP/MASK")
+                    .validator(ipnetwork_validator),
             ),
+    )
+    .subcommand(
+        clap::Command::new("unignore")
+        .about("Allows generating peer IPs in specified IP range. Overrides overlapping 'ignored' ranges.")
+        .arg(
+            clap::Arg::new("range")
+            .help("IP range to unignore")
+            .required(true)
+            .value_name("IP/MASK")
+            .validator(ipnetwork_validator),
+        ),
     )
 }
 
@@ -462,7 +472,7 @@ fn main() {
         Ok(())
     }
 
-    // panics if prefix of ignored network because of this issue:
+    // panics if prefix of ignored network is 0 because of this issue:
     // https://github.com/achanda/ipnetwork/issues/130
     fn command_ignore_range(
         cfg: &mut configs::WireguardNetworkInfo,
@@ -471,6 +481,15 @@ fn main() {
         let s = matches.value_of("range").ok_or("".to_string())?;
         let range = IpNetwork::from_str(s).map_err(|f| f.to_string())?;
         ignore_range(cfg, range)
+    }
+
+    fn command_unignore(
+        cfg: &mut configs::WireguardNetworkInfo,
+        matches: &clap::ArgMatches,
+    ) -> RVoid {
+        let s = matches.value_of("range").ok_or("".to_string())?;
+        let range = IpNetwork::from_str(s).map_err(|f| f.to_string())?;
+        unignore_range(cfg, range)
     }
 
     fn commands(net: &mut configs::WireguardNetworkInfo, args: &clap::ArgMatches) -> RVoid {
@@ -515,6 +534,7 @@ fn main() {
                 Ok(())
             }
             Some(("ignore", matches)) => command_ignore_range(net, matches),
+            Some(("unignore", matches)) => command_unignore(net, matches),
             _ => Ok(()),
         }
     }
@@ -582,11 +602,30 @@ fn ignore_range(cfg: &mut configs::WireguardNetworkInfo, range: IpNetwork) -> RV
     Ok(())
 }
 
+fn unignore_range(cfg: &mut WireguardNetworkInfo, range: IpNetwork) -> RVoid {
+    match range {
+        IpNetwork::V4(range) => {
+            let rem = IpNetDifference::subtract_all(&cfg.ignored_ipv4, &range);
+            cfg.ignored_ipv4.clear();
+            cfg.ignored_ipv4.extend(rem);
+            Ok(())
+        }
+        IpNetwork::V6(range) => {
+            let rem = IpNetDifference::subtract_all(&cfg.ignored_ipv6, &range);
+            cfg.ignored_ipv6.clear();
+            cfg.ignored_ipv6.extend(rem);
+            Ok(())
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::net::Ipv4Addr;
+
     use ipnetwork::Ipv4Network;
 
-    use crate::configs::{as_network, ban_ip_subnet, WireguardNetworkInfo};
+    use crate::configs::WireguardNetworkInfo;
 
     use super::*;
 
@@ -651,17 +690,20 @@ mod tests {
     fn test_one_free_ip() {
         let net = "10.0.0.0/24";
         let mut cfg = new_config(net);
-        let free_ip = IpAddr::from_str("10.0.0.25").unwrap();
-        for range in ban_ip_subnet(
-            &vec![IpNetwork::from_str(net).unwrap()],
-            &as_network(free_ip),
-        ) {
-            ignore_range(&mut cfg, range).unwrap();
+        let free_ip = "10.0.0.25";
+        for range in Ipv4Network::from_str(net)
+            .unwrap()
+            .subtract(&Ipv4Network::from_str(free_ip).unwrap())
+        {
+            ignore_range(&mut cfg, IpNetwork::V4(range)).unwrap();
         }
 
         add_peer(&mut cfg, "1").unwrap();
         let peer1 = cfg.peers.iter().find(|p| p.name == "1").unwrap();
-        assert_eq!(peer1.ips, vec![free_ip]);
+        assert_eq!(
+            peer1.ips,
+            vec![IpAddr::V4(Ipv4Addr::from_str(free_ip).unwrap())]
+        );
         add_peer(&mut cfg, "2").expect_err("Expected no free IPs");
     }
 
@@ -707,6 +749,26 @@ mod tests {
         add_peer(&mut cfg, "1").unwrap();
         ignore_range(&mut cfg, IpNetwork::from_str("10.0.0.0/28").unwrap())
             .expect_err("Expected abort");
+    }
+
+    #[test]
+    fn test_unignore_1() {
+        let net = "10.0.0.0/24";
+        let mut cfg = new_config(net);
+        ignore_range(&mut cfg, IpNetwork::from_str("10.0.0.0/24").unwrap()).unwrap();
+        unignore_range(&mut cfg, IpNetwork::from_str("10.0.0.127/32").unwrap()).unwrap();
+        add_peer(&mut cfg, "1").unwrap();
+        let peer = cfg.peers.iter().find(|p| p.name == "1").unwrap();
+        assert_eq!(peer.ips, vec![IpAddr::from_str("10.0.0.127").unwrap()]);
+    }
+
+    #[test]
+    fn test_unignore_cancel() {
+        let net = "10.0.0.0/24";
+        let mut cfg = new_config(net);
+        ignore_range(&mut cfg, IpNetwork::from_str("10.0.0.2/31").unwrap()).unwrap();
+        unignore_range(&mut cfg, IpNetwork::from_str("10.0.0.2/31").unwrap()).unwrap();
+        assert_eq!(cfg.ignored_ipv4, HashSet::new());
     }
 }
 
