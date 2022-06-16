@@ -1,16 +1,44 @@
 {
-  "name": "ooof",
+  "name": "net",
   "flags": [],
   "networks": [
-    "10.0.0.0/24"
+    "1::/120"
   ],
   "peers": [
     {
-      "name": "cab",
-      "private_key": "eKVXLS+mrHbH7cFRjllHG/7SqtUeTGLT+uJ59kSHmXw=",
+      "name": "1",
+      "private_key": "6E+2SjAegNt9RGCJWY1HltfhwGxRFPKFHsIptjmsoWI=",
       "id": 1,
       "flags": [],
-      "endpoint": null
+      "endpoint": null,
+      "ips": [
+        "1::4"
+      ]
+    },
+    {
+      "name": "2",
+      "private_key": "IBCsA6ZRO+VbwP8EJKRsg+gjzFMiQGOxZjMmHQojvHQ=",
+      "id": 2,
+      "flags": [],
+      "endpoint": null,
+      "ips": [
+        "1::5"
+      ]
+    },
+    {
+      "name": "3",
+      "private_key": "KOVREmR7ArC5kq8DdcmwHLJc1PRMZjIPmlxG5h89MEQ=",
+      "id": 3,
+      "flags": [],
+      "endpoint": null,
+      "ips": [
+        "1::8"
+      ]
     }
+  ],
+  "ignored_ipv4": [],
+  "ignored_ipv6": [
+    "1::6/127",
+    "1::/126"
   ]
 }
