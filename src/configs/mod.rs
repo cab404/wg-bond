@@ -441,13 +441,11 @@ impl WireguardNetworkInfo {
     }
 
     pub fn by_name_mut(&mut self, name: &str) -> Option<&mut PeerInfo> {
-        let mut peers = self.peers.iter_mut();
-        peers.find(|f| f.name == *name)
+        self.peers.iter_mut().find(|f| f.name == *name)
     }
 
     pub fn by_name(&self, name: &str) -> Option<&PeerInfo> {
-        let mut peers = self.peers.iter();
-        peers.find(|f| f.name == *name)
+        self.peers.iter().find(|f| f.name == *name)
     }
 
     pub fn by_id(&self, id: u128) -> Option<&PeerInfo> {
