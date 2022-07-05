@@ -46,3 +46,8 @@ pub fn gen_public_key(private_key: &str) -> Result<String, String> {
 
     Ok(base64::encode(PublicKey::from(&secret).as_bytes()))
 }
+
+pub fn gen_symmetric_key() -> String {
+    // I hope private key is a valid symmetric key
+    gen_private_key()
+}
