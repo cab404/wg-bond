@@ -6,10 +6,17 @@
   ],
   "peers": [
     {
-      "name": "fromtemplate",
-      "private_key": "cKq3udRC9q3GlN3Er+wnnDgCTzGIaYqM78ybTJ0jfWU=",
+      "name": "1",
+      "private_key": "2KT/BLCWqWWONoRuQzlTY+H/mbPPfZ5vAG+cp95duEk=",
       "id": 1,
       "flags": [
+        {
+          "DNS": {
+            "addresses": [
+              "8.8.8.4"
+            ]
+          }
+        },
         {
           "Gateway": {
             "ignore_local_networks": true
@@ -21,90 +28,21 @@
           }
         }
       ],
-      "endpoint": "template.io:8080",
+      "endpoint": "hello.world:8080",
       "ips": [
         "10.0.0.1"
       ]
     },
     {
-      "name": "fromtemplate2",
-      "private_key": "eNrlokP+otZ8o/qnWIc45qjdUliZmpGyprTTYVV9kW0=",
+      "name": "2",
+      "private_key": "cGtVWUqdjDdkzS7tpcaRwSyN4yKX2j7jRK9uH2WncWg=",
       "id": 2,
-      "flags": [
-        {
-          "Gateway": {
-            "ignore_local_networks": true
-          }
-        },
-        {
-          "Keepalive": {
-            "keepalive": 30
-          }
-        }
-      ],
-      "endpoint": "template.io:8080",
-      "ips": [
-        "10.0.0.2"
-      ]
-    },
-    {
-      "name": "tt3",
-      "private_key": "uE0tl6r5FR3woR1Owe33uv/cty6L2ivsP5OL9neDl0E=",
-      "id": 3,
-      "flags": [
-        {
-          "DNS": {
-            "addresses": [
-              "1.1.1.1"
-            ]
-          }
-        }
-      ],
-      "endpoint": null,
-      "ips": [
-        "10.0.0.3"
-      ]
-    },
-    {
-      "name": "tt5",
-      "private_key": "UOKHOc3nQCux2bqgrbq7ckCb0knRLJqHLtR1Fll9bFE=",
-      "id": 4,
-      "flags": [],
-      "endpoint": null,
-      "ips": [
-        "10.0.0.5"
-      ]
-    },
-    {
-      "name": "tt7",
-      "private_key": "CIp3K5yo6fqx39ljijjOnWtwRcRftVyImsJgnZtIn1g=",
-      "id": 5,
-      "flags": [],
-      "endpoint": null,
-      "ips": [
-        "10.0.0.6"
-      ]
-    },
-    {
-      "name": "tt27",
-      "private_key": "iGRLYeCWkArjXuUY3LE8ZbVZztqxrUiN5joos9fWVEI=",
-      "id": 6,
-      "flags": [],
-      "endpoint": null,
-      "ips": [
-        "10.0.0.7"
-      ]
-    },
-    {
-      "name": "tt127",
-      "private_key": "uIcGDbx8Unr5x1DwwNdxG6CdboF/VC8fk+2/LmMA0GM=",
-      "id": 7,
       "flags": [
         "Template"
       ],
       "endpoint": null,
       "ips": [
-        "10.0.0.8"
+        "10.0.0.2"
       ]
     }
   ],

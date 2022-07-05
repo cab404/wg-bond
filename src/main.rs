@@ -157,6 +157,7 @@ fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Arg
     if let Some(template_name) = matches.value_of("use-template") {
         if let Some(template) = cfg.by_name(template_name) {
             peer.flags = template.flags.clone();
+            peer.flags.retain(|f| *f != PeerFlag::Template);
         } else {
             Err(format!(
                 "Peer you are trying to use as a template ({}) doesn't exist!",
@@ -184,7 +185,7 @@ fn command_list_peers(cfg: &configs::WireguardNetworkInfo, _: &clap::ArgMatches)
         peer_ip = "IP",
         endpoint = "Endpoint"
     );
-    for peer in cfg.peers.iter() {
+    for peer in cfg.real_peers() {
         let wg_peer = cfg.map_to_interface(peer)?;
         println!(
             "{name:>12}   {ip:30}   {endpoint:15}",
@@ -233,13 +234,15 @@ fn command_export<C: ConfigType>(
         match matches.value_of("tunnel") {
             Some("") => {
                 let gateway = cfg
-                    .peers
+                    .real_peers()
                     .iter()
                     .find(|f| f.has_flag("Gateway"))
+                    .cloned()
                     .ok_or("No gateways found in your config.")?;
                 newcfg.peers = vec![gateway.clone(), peer.clone()];
             }
             Some(p) => {
+                // Should we search in templates???
                 let gateway = cfg.by_name(p).ok_or("No gateway found by given name")?;
                 // if !peer_is_gateway(gateway) {
                 //     panic!("Peer with this name is not a gateway!")
@@ -262,7 +265,7 @@ fn command_export_secrets(
     matches: &clap::ArgMatches,
 ) -> std::io::Result<()> {
     let export_dir = matches.value_of("target").expect("no panik");
-    for peer in &cfg.peers {
+    for peer in &cfg.real_peers() {
         std::fs::create_dir_all(format!("{}/{}", export_dir, peer.name))?;
         let mut f = std::fs::OpenOptions::new()
             .write(true)

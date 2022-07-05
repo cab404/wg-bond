@@ -388,8 +388,8 @@ impl WireguardNetworkInfo {
     /// Returns a list of peers for configuration of a given peer
     pub fn peer_list(&self, info: &PeerInfo) -> Vec<&PeerInfo> {
         let others = || {
-            self.peers
-                .iter()
+            self.real_peers()
+                .into_iter()
                 .filter(|peer| peer.id != info.id)
                 .collect::<Vec<_>>()
         };
@@ -512,6 +512,13 @@ impl WireguardNetworkInfo {
             _ => panic!("Internal error"),
         }
         .ok_or(std::format!("No more unreserved IPs left in {}", net))
+    }
+
+    pub fn real_peers(&self) -> Vec<&PeerInfo> {
+        self.peers
+            .iter()
+            .filter(|p| !p.is_template())
+            .collect::<Vec<_>>()
     }
 }
 
