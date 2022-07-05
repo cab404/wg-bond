@@ -8,7 +8,7 @@ use crate::configs::nix::KeyFileExportConfig;
 use crate::configs::ConfigType;
 use crate::configs::{check_endpoint, IpNetDifference};
 use ipnetwork::IpNetwork;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -74,6 +74,7 @@ fn command_init_config(matches: &clap::ArgMatches) -> configs::WireguardNetworkI
         peers: vec![],
         ignored_ipv4: HashSet::new(),
         ignored_ipv6: HashSet::new(),
+        pre_shared_keys: HashMap::new(),
     }
 }
 
@@ -442,6 +443,10 @@ fn main_app<'a>() -> clap::Command<'a> {
             .validator(ipnetwork_validator),
         ),
     )
+    .subcommand(
+        clap::Command::new("gen-preshared-keys")
+        .about("Generates pre-shared key for each pair of hosts")
+    )
 }
 
 fn main() {
@@ -535,6 +540,7 @@ fn main() {
             }
             Some(("ignore", matches)) => command_ignore_range(net, matches),
             Some(("unignore", matches)) => command_unignore(net, matches),
+            Some(("gen-preshared-keys", _)) => Ok(gen_preshared_keys(net)),
             _ => Ok(()),
         }
     }
@@ -617,6 +623,22 @@ fn unignore_range(cfg: &mut WireguardNetworkInfo, range: IpNetwork) -> RVoid {
             Ok(())
         }
     }
+}
+
+fn gen_preshared_keys(cfg: &mut WireguardNetworkInfo) {
+    let ids = cfg.peers.iter().map(|peer| peer.id).collect::<Vec<_>>();
+    cfg.pre_shared_keys = ids
+        .iter()
+        .flat_map(|id| {
+            ids.iter().filter_map(move |next_id| {
+                if next_id > id {
+                    Some(((*id, *next_id), wg_tools::gen_symmetric_key()))
+                } else {
+                    None
+                }
+            })
+        })
+        .collect();
 }
 
 #[cfg(test)]

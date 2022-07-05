@@ -1,7 +1,8 @@
 use crate::wg_tools;
 use ipnetwork::{IpNetwork, Ipv4Network, Ipv6Network};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use serde_with::serde_as;
+use std::collections::{HashMap, HashSet};
 use std::iter::*;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
@@ -285,12 +286,14 @@ impl PeerFlag {
     }
 }
 
+type PeerId = u128;
+
 // Information about a peer
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PeerInfo {
     pub name: String,
     pub private_key: String,
-    pub id: u128,
+    pub id: PeerId,
     pub flags: Vec<PeerFlag>,
     pub endpoint: Option<String>,
     pub ips: Vec<IpAddr>,
@@ -327,7 +330,8 @@ impl PeerInfo {
     }
 }
 
-// Overall network informatiom
+// Overall network information
+#[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WireguardNetworkInfo {
     pub name: String,
@@ -337,6 +341,8 @@ pub struct WireguardNetworkInfo {
     // Non-overlapping ignored subnets
     pub ignored_ipv4: HashSet<Ipv4Network>,
     pub ignored_ipv6: HashSet<Ipv6Network>,
+    #[serde_as(as = "Vec<(_, _)>")]
+    pub pre_shared_keys: HashMap<(PeerId, PeerId), String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, AsRefStr, Clone)]
@@ -356,13 +362,22 @@ macro_rules! find_pattern {
 }
 
 impl WireguardNetworkInfo {
-    pub fn map_to_peer(&self, info: &PeerInfo) -> Result<Peer, String> {
+    pub fn map_to_peer(&self, from: &PeerInfo, info: &PeerInfo) -> Result<Peer, String> {
         let mut peer = info.derive_peer()?;
         peer.allowed_ips = info.ips.iter().map(|n| as_network(*n)).collect();
 
         for flag in &info.flags {
             flag.apply_to_peer(self, &mut peer)
         }
+
+        peer.preshared_key = self
+            .pre_shared_keys
+            .get(&(
+                std::cmp::min(from.id, info.id),
+                std::cmp::max(from.id, info.id),
+            ))
+            .cloned();
+
         Ok(peer)
     }
 
@@ -420,7 +435,7 @@ impl WireguardNetworkInfo {
             peers: self
                 .peer_list(info)
                 .iter()
-                .map(|x| self.map_to_peer(x))
+                .map(|x| self.map_to_peer(info, x))
                 .collect::<Result<Vec<_>, _>>()?,
             name: self.name.clone(),
         };
