@@ -342,7 +342,6 @@ pub struct WireguardNetworkInfo {
     // Non-overlapping ignored subnets
     pub ignored_ipv4: HashSet<Ipv4Network>,
     pub ignored_ipv6: HashSet<Ipv6Network>,
-    pub templates: Vec<PeerInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, AsRefStr, Clone)]
@@ -441,25 +440,14 @@ impl WireguardNetworkInfo {
         Ok(config)
     }
 
-    // How to implement it shorter??
-    pub fn by_name_mut(&mut self, name: &str, search_in_templates: bool) -> Option<&mut PeerInfo> {
+    pub fn by_name_mut(&mut self, name: &str) -> Option<&mut PeerInfo> {
         let mut peers = self.peers.iter_mut();
-        if search_in_templates {
-            peers
-                .chain(self.templates.iter_mut())
-                .find(|f| f.name == *name)
-        } else {
-            peers.find(|f| f.name == *name)
-        }
+        peers.find(|f| f.name == *name)
     }
 
-    pub fn by_name(&self, name: &str, search_in_templates: bool) -> Option<&PeerInfo> {
+    pub fn by_name(&self, name: &str) -> Option<&PeerInfo> {
         let mut peers = self.peers.iter();
-        if search_in_templates {
-            peers.chain(self.templates.iter()).find(|f| f.name == *name)
-        } else {
-            peers.find(|f| f.name == *name)
-        }
+        peers.find(|f| f.name == *name)
     }
 
     pub fn by_id(&self, id: u128) -> Option<&PeerInfo> {

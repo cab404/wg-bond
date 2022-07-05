@@ -74,38 +74,10 @@ fn command_init_config(matches: &clap::ArgMatches) -> configs::WireguardNetworkI
         peers: vec![],
         ignored_ipv4: HashSet::new(),
         ignored_ipv6: HashSet::new(),
-        templates: vec![],
     }
 }
 
-fn parse_peer_edit_command(
-    peers: &Vec<PeerInfo>,
-    templates: &Vec<PeerInfo>,
-    peer: &mut configs::PeerInfo,
-    matches: &clap::ArgMatches,
-) -> RVoid {
-    if let Some(template) = matches.value_of("template") {
-        if let Some(template) = peers
-            .iter()
-            .chain(templates.iter())
-            .find(|peer| peer.name == template)
-        {
-            peer.endpoint = template.endpoint.clone();
-            let was_template = peer.flags.contains(&PeerFlag::Template);
-            peer.flags = template
-                .flags
-                .clone()
-                .into_iter()
-                .filter(|f| *f != PeerFlag::Template)
-                .collect::<Vec<_>>();
-            if was_template {
-                peer.flags.insert(0, PeerFlag::Template);
-            }
-        } else {
-            Err(std::format!("No peer with name {} found", template))?;
-        }
-    }
-
+fn parse_peer_edit_command(peer: &mut configs::PeerInfo, matches: &clap::ArgMatches) -> RVoid {
     if let Some(endpoint) = matches.value_of("endpoint") {
         peer.endpoint = Some(check_endpoint(endpoint.to_string())?);
     }
@@ -129,6 +101,10 @@ fn parse_peer_edit_command(
                 interface: interface.into(),
             },
         )
+    }
+
+    if matches.is_present("is-template") {
+        peer.flags.insert(0, configs::PeerFlag::Template);
     }
 
     if matches.is_present("center") {
@@ -165,7 +141,7 @@ fn parse_peer_edit_command(
 fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::ArgMatches) -> RVoid {
     let peer_id = new_id(cfg);
     let name: String = matches.value_of("name").unwrap().into();
-    if cfg.by_name(&name, true).is_some() {
+    if cfg.by_name(&name).is_some() {
         Err("Peer with that name already exist!")?;
     }
 
@@ -178,22 +154,24 @@ fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Arg
         ips: vec![],
     };
 
-    if matches.is_present("astemplate") {
-        peer.flags.insert(0, configs::PeerFlag::Template);
-    }
-
-    parse_peer_edit_command(&cfg.peers, &cfg.templates, &mut peer, matches)?;
-
-    if peer.is_template() {
-        cfg.templates.push(peer);
-        info!("Peer template added!");
-    } else {
-        for net in &cfg.networks {
-            peer.ips.push(cfg.get_free_net_address(*net)?);
+    if let Some(template_name) = matches.value_of("use-template") {
+        if let Some(template) = cfg.by_name(template_name) {
+            peer.flags = template.flags.clone();
+        } else {
+            Err(format!(
+                "Peer you are trying to use as a template ({}) doesn't exist!",
+                template_name
+            ))?
         }
-        cfg.peers.push(peer);
-        info!("Peer added!");
     }
+
+    parse_peer_edit_command(&mut peer, matches)?;
+
+    for net in &cfg.networks {
+        peer.ips.push(cfg.get_free_net_address(*net)?);
+    }
+    cfg.peers.push(peer);
+    info!("Peer added!");
 
     Ok(())
 }
@@ -226,20 +204,9 @@ fn command_list_peers(cfg: &configs::WireguardNetworkInfo, _: &clap::ArgMatches)
 fn command_edit_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::ArgMatches) -> RVoid {
     let name: String = matches.value_of("name").unwrap().into();
 
-    // I don't understand how to get read access to peers
-    // withous cloning. Some borrowing errors occur otherwise.
-    let peers = cfg.peers.clone();
-    let templates = cfg.templates.clone();
+    let peer = cfg.by_name_mut(&name).ok_or("No peer with this name.")?;
 
-    let mut peer = cfg
-        .by_name_mut(&name, true)
-        .ok_or("No peer with this name.")?;
-
-    if matches.is_present("astemplate") {
-        Err("Cannot mark non-template as template")?;
-    }
-
-    parse_peer_edit_command(&peers, &templates, &mut peer, matches)?;
+    parse_peer_edit_command(peer, matches)?;
 
     Ok(())
 }
@@ -250,9 +217,15 @@ fn command_export<C: ConfigType>(
     export_options: C::ExportConfig,
 ) -> RVoid {
     let name: String = matches.value_of("name").unwrap().into();
-    let peer = cfg
-        .by_name(&name, false)
-        .ok_or("No non-template peer found with this name.")?;
+
+    let peer = cfg.by_name(&name).ok_or("No peers found with this name.")?;
+
+    if peer.is_template() {
+        Err(format!(
+            "Peer you are trying to export ({}) is a template!",
+            name
+        ))?
+    }
 
     let newcfg = &mut cfg.clone();
 
@@ -267,9 +240,7 @@ fn command_export<C: ConfigType>(
                 newcfg.peers = vec![gateway.clone(), peer.clone()];
             }
             Some(p) => {
-                let gateway = cfg
-                    .by_name(p, false)
-                    .ok_or("No gateway found by given name")?;
+                let gateway = cfg.by_name(p).ok_or("No gateway found by given name")?;
                 // if !peer_is_gateway(gateway) {
                 //     panic!("Peer with this name is not a gateway!")
                 // }
@@ -366,17 +337,17 @@ fn edit_params<'a>(subcommand: clap::Command<'a>) -> clap::Command<'a> {
             .takes_value(true)
             .value_name("SECONDS")
         )
-        .arg(clap::Arg::new("astemplate")
-            .long("astemplate")
-            .help("Whether this peer is to be used as template for creating other peers.")
+        .arg(clap::Arg::new("is-template")
+            .long("is-template")
+            .help("Whether this peer is a template to base other peers on.")
             .takes_value(false)
         )
-        .arg(clap::Arg::new("template")
+        .arg(clap::Arg::new("use-template")
             .short('T')
-            .long("template")
-            .help("Use template")
+            .long("use-template")
+            .help("Specifies on which other peer to base this upon")
             .takes_value(true)
-            .value_name("TEMPLATE")
+            .value_name("PEER NAME")
         )
 }
 

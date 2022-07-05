@@ -46,30 +46,68 @@
       "ips": [
         "10.0.0.2"
       ]
-    }
-  ],
-  "ignored_ipv4": [],
-  "ignored_ipv6": [],
-  "templates": [
+    },
     {
-      "name": "template",
-      "private_key": "8MlROc7bTlyCkwJh5CKDugHDZPjSfylUaCG1U+5DuGk=",
+      "name": "tt3",
+      "private_key": "uE0tl6r5FR3woR1Owe33uv/cty6L2ivsP5OL9neDl0E=",
       "id": 3,
       "flags": [
         {
-          "Gateway": {
-            "ignore_local_networks": true
+          "DNS": {
+            "addresses": [
+              "1.1.1.1"
+            ]
           }
-        },
-        {
-          "Keepalive": {
-            "keepalive": 30
-          }
-        },
+        }
+      ],
+      "endpoint": null,
+      "ips": [
+        "10.0.0.3"
+      ]
+    },
+    {
+      "name": "tt5",
+      "private_key": "UOKHOc3nQCux2bqgrbq7ckCb0knRLJqHLtR1Fll9bFE=",
+      "id": 4,
+      "flags": [],
+      "endpoint": null,
+      "ips": [
+        "10.0.0.5"
+      ]
+    },
+    {
+      "name": "tt7",
+      "private_key": "CIp3K5yo6fqx39ljijjOnWtwRcRftVyImsJgnZtIn1g=",
+      "id": 5,
+      "flags": [],
+      "endpoint": null,
+      "ips": [
+        "10.0.0.6"
+      ]
+    },
+    {
+      "name": "tt27",
+      "private_key": "iGRLYeCWkArjXuUY3LE8ZbVZztqxrUiN5joos9fWVEI=",
+      "id": 6,
+      "flags": [],
+      "endpoint": null,
+      "ips": [
+        "10.0.0.7"
+      ]
+    },
+    {
+      "name": "tt127",
+      "private_key": "uIcGDbx8Unr5x1DwwNdxG6CdboF/VC8fk+2/LmMA0GM=",
+      "id": 7,
+      "flags": [
         "Template"
       ],
-      "endpoint": "template.io:8080",
-      "ips": []
+      "endpoint": null,
+      "ips": [
+        "10.0.0.8"
+      ]
     }
-  ]
+  ],
+  "ignored_ipv4": [],
+  "ignored_ipv6": []
 }
