@@ -1,5 +1,7 @@
 use base64;
-use rand_core::OsRng;
+use rand::prelude::*;
+use rand_core::{OsRng, RngCore};
+use sha3::{Digest, Sha3_256};
 use std::convert::TryFrom;
 use x25519_dalek::{PublicKey, StaticSecret};
 
@@ -10,8 +12,54 @@ fn read_key(from: &Vec<u8>) -> String {
         .to_string()
 }
 
-pub fn gen_private_key() -> String {
-    base64::encode(StaticSecret::new(OsRng).to_bytes())
+pub struct DerivationParameters {
+    pub seed: String,
+    pub path: String,
+}
+
+impl DerivationParameters {
+    fn from(seed: &str, path: &str) -> DerivationParameters {
+        DerivationParameters {
+            seed: seed.to_string(),
+            path: path.to_string(),
+        }
+    }
+}
+
+/// Generates private key, either by the seed or with [OsRng]
+pub fn gen_private_key(seed: Option<DerivationParameters>) -> String {
+    let mut key_bytes = [0u8; 32];
+    match seed {
+        Some(DerivationParameters { seed, path }) => {
+            let mut hasher = Sha3_256::new();
+            hasher.update(path);
+            hasher.update(seed);
+            let seed = hasher.finalize();
+
+            let mut rng = StdRng::from_seed(seed.into());
+            rng.fill(&mut key_bytes[..]);
+        }
+        None => OsRng.fill_bytes(&mut key_bytes),
+    }
+    base64::encode(StaticSecret::from(key_bytes).to_bytes())
+}
+
+#[test]
+pub fn test_key_derivation() {
+    assert_eq!(
+        gen_private_key(Some(DerivationParameters::from(
+            "Gandalf-melpa-celestia",
+            "/0/1"
+        ))),
+        "cMnQ4piNjIClKG0DjnCwLsJlsR7W9Xr5qm9rwT/kE2I="
+    );
+    assert_eq!(
+        gen_private_key(Some(DerivationParameters::from(
+            "Gandalf-melpa-celestia",
+            "/0/2"
+        ))),
+        "sGkJYyfOtCIs9I7Ue4EpQPiJytL6CZWGeNJcfIn1GV4="
+    );
 }
 
 #[test]
