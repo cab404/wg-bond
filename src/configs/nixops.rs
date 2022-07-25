@@ -20,7 +20,11 @@ pub fn write_config(
         .as_str();
     built += "\";};";
 
-    for peer in net.peers.iter().filter(|a| a.has_flag("NixOpsMachine")) {
+    for peer in net
+        .real_peers()
+        .iter()
+        .filter(|a| a.has_flag("NixOpsMachine"))
+    {
         built += "\"";
         built += peer.name.as_str();
         built += "\".";

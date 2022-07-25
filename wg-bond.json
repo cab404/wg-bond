@@ -2,43 +2,50 @@
   "name": "net",
   "flags": [],
   "networks": [
-    "1::/120"
+    "10.0.0.0/24"
   ],
   "peers": [
     {
       "name": "1",
-      "private_key": "6E+2SjAegNt9RGCJWY1HltfhwGxRFPKFHsIptjmsoWI=",
+      "private_key": "2KT/BLCWqWWONoRuQzlTY+H/mbPPfZ5vAG+cp95duEk=",
       "id": 1,
-      "flags": [],
-      "endpoint": null,
+      "flags": [
+        {
+          "DNS": {
+            "addresses": [
+              "8.8.8.4"
+            ]
+          }
+        },
+        {
+          "Gateway": {
+            "ignore_local_networks": true
+          }
+        },
+        {
+          "Keepalive": {
+            "keepalive": 30
+          }
+        }
+      ],
+      "endpoint": "hello.world:8080",
       "ips": [
-        "1::4"
+        "10.0.0.1"
       ]
     },
     {
       "name": "2",
-      "private_key": "IBCsA6ZRO+VbwP8EJKRsg+gjzFMiQGOxZjMmHQojvHQ=",
+      "private_key": "cGtVWUqdjDdkzS7tpcaRwSyN4yKX2j7jRK9uH2WncWg=",
       "id": 2,
-      "flags": [],
+      "flags": [
+        "Template"
+      ],
       "endpoint": null,
       "ips": [
-        "1::5"
-      ]
-    },
-    {
-      "name": "3",
-      "private_key": "KOVREmR7ArC5kq8DdcmwHLJc1PRMZjIPmlxG5h89MEQ=",
-      "id": 3,
-      "flags": [],
-      "endpoint": null,
-      "ips": [
-        "1::8"
+        "10.0.0.2"
       ]
     }
   ],
   "ignored_ipv4": [],
-  "ignored_ipv6": [
-    "1::6/127",
-    "1::/126"
-  ]
+  "ignored_ipv6": []
 }

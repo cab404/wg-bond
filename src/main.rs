@@ -16,7 +16,7 @@ use std::str::FromStr;
 use configs::conf::ConfFile;
 use configs::nix::NixConf;
 use configs::{hosts::export_hosts, qr::QRConfig};
-use configs::{nixops, WireguardNetworkInfo};
+use configs::{nixops, PeerFlag, PeerInfo, WireguardNetworkInfo};
 
 use clap;
 
@@ -103,6 +103,10 @@ fn parse_peer_edit_command(peer: &mut configs::PeerInfo, matches: &clap::ArgMatc
         )
     }
 
+    if matches.is_present("is-template") {
+        peer.flags.insert(0, configs::PeerFlag::Template);
+    }
+
     if matches.is_present("center") {
         peer.flags.insert(0, configs::PeerFlag::Center)
     }
@@ -150,13 +154,24 @@ fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Arg
         ips: vec![],
     };
 
+    if let Some(template_name) = matches.value_of("use-template") {
+        if let Some(template) = cfg.by_name(template_name) {
+            peer.flags = template.flags.clone();
+            peer.flags.retain(|f| *f != PeerFlag::Template);
+        } else {
+            Err(format!(
+                "Peer you are trying to use as a template ({}) doesn't exist!",
+                template_name
+            ))?
+        }
+    }
+
     parse_peer_edit_command(&mut peer, matches)?;
 
     for net in &cfg.networks {
         peer.ips.push(cfg.get_free_net_address(*net)?);
     }
-    cfg.peers.append(&mut vec![peer]);
-
+    cfg.peers.push(peer);
     info!("Peer added!");
 
     Ok(())
@@ -170,7 +185,7 @@ fn command_list_peers(cfg: &configs::WireguardNetworkInfo, _: &clap::ArgMatches)
         peer_ip = "IP",
         endpoint = "Endpoint"
     );
-    for peer in cfg.peers.iter() {
+    for peer in cfg.real_peers() {
         let wg_peer = cfg.map_to_interface(peer)?;
         println!(
             "{name:>12}   {ip:30}   {endpoint:15}",
@@ -189,9 +204,10 @@ fn command_list_peers(cfg: &configs::WireguardNetworkInfo, _: &clap::ArgMatches)
 
 fn command_edit_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::ArgMatches) -> RVoid {
     let name: String = matches.value_of("name").unwrap().into();
-    let mut peer = cfg.by_name_mut(&name).ok_or("No peer with this name.")?;
 
-    parse_peer_edit_command(&mut peer, matches)?;
+    let peer = cfg.by_name_mut(&name).ok_or("No peer with this name.")?;
+
+    parse_peer_edit_command(peer, matches)?;
 
     Ok(())
 }
@@ -202,7 +218,15 @@ fn command_export<C: ConfigType>(
     export_options: C::ExportConfig,
 ) -> RVoid {
     let name: String = matches.value_of("name").unwrap().into();
-    let peer = cfg.by_name(&name).ok_or("No peer found with this name.")?;
+
+    let peer = cfg.by_name(&name).ok_or("No peers found with this name.")?;
+
+    if peer.is_template() {
+        Err(format!(
+            "Peer you are trying to export ({}) is a template!",
+            name
+        ))?
+    }
 
     let newcfg = &mut cfg.clone();
 
@@ -210,13 +234,15 @@ fn command_export<C: ConfigType>(
         match matches.value_of("tunnel") {
             Some("") => {
                 let gateway = cfg
-                    .peers
+                    .real_peers()
                     .iter()
                     .find(|f| f.has_flag("Gateway"))
+                    .cloned()
                     .ok_or("No gateways found in your config.")?;
                 newcfg.peers = vec![gateway.clone(), peer.clone()];
             }
             Some(p) => {
+                // Should we search in templates???
                 let gateway = cfg.by_name(p).ok_or("No gateway found by given name")?;
                 // if !peer_is_gateway(gateway) {
                 //     panic!("Peer with this name is not a gateway!")
@@ -239,7 +265,7 @@ fn command_export_secrets(
     matches: &clap::ArgMatches,
 ) -> std::io::Result<()> {
     let export_dir = matches.value_of("target").expect("no panik");
-    for peer in &cfg.peers {
+    for peer in &cfg.real_peers() {
         std::fs::create_dir_all(format!("{}/{}", export_dir, peer.name))?;
         let mut f = std::fs::OpenOptions::new()
             .write(true)
@@ -313,6 +339,18 @@ fn edit_params<'a>(subcommand: clap::Command<'a>) -> clap::Command<'a> {
             )
             .takes_value(true)
             .value_name("SECONDS")
+        )
+        .arg(clap::Arg::new("is-template")
+            .long("is-template")
+            .help("Whether this peer is a template to base other peers on.")
+            .takes_value(false)
+        )
+        .arg(clap::Arg::new("use-template")
+            .short('T')
+            .long("use-template")
+            .help("Specifies on which other peer to base this upon")
+            .takes_value(true)
+            .value_name("PEER NAME")
         )
 }
 
