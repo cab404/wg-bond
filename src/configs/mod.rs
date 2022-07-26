@@ -1,7 +1,8 @@
 use crate::wg_tools;
 use ipnetwork::{IpNetwork, Ipv4Network, Ipv6Network};
+use petgraph::graph::Graph;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::iter::*;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
@@ -164,6 +165,7 @@ pub enum PeerFlag {
     NixOpsMachine,
     Center,
     Template,
+    UseTemplate { peer: u128 },
 }
 
 #[test]
@@ -423,10 +425,23 @@ impl WireguardNetworkInfo {
     }
 
     pub fn get_configuration(&self, info: &PeerInfo) -> Result<WireguardConfiguration, String> {
+        let templates = self.collect_templates(info.id)?;
+        let mut info = info.clone();
+
+        // extend info's flags with those contained in templates
+        for flag in templates.iter().flat_map(|t| {
+            self.by_id(*t).unwrap().flags.iter().filter(|f| match f {
+                PeerFlag::UseTemplate { .. } => false,
+                _ => true,
+            })
+        }) {
+            info.flags.insert(0, flag.clone());
+        }
+
         let mut config = WireguardConfiguration {
-            interface: self.map_to_interface(info)?,
+            interface: self.map_to_interface(&info)?,
             peers: self
-                .peer_list(info)
+                .peer_list(&info)
                 .iter()
                 .map(|x| self.map_to_peer(x))
                 .collect::<Result<Vec<_>, _>>()?,
@@ -517,6 +532,46 @@ impl WireguardNetworkInfo {
             .iter()
             .filter(|p| !p.is_template())
             .collect::<Vec<_>>()
+    }
+
+    /// Recursively collect templates on which peer is dependent
+    pub fn collect_templates(&self, peer: u128) -> Result<Vec<u128>, String> {
+        use petgraph::stable_graph::NodeIndex;
+        use petgraph::visit::Dfs;
+
+        let mut graph: Graph<u128, (), petgraph::Directed> = Graph::new();
+        let mut peer_indices: HashMap<u128, NodeIndex<_>> = HashMap::new();
+
+        // building map "peer_id -> graph node"
+        for p in self.peers.iter() {
+            peer_indices.insert(p.id, graph.add_node(p.id));
+        }
+
+        for (peer, template) in self.peers.iter().flat_map(|p| {
+            p.flags.iter().filter_map(move |f| {
+                if let PeerFlag::UseTemplate { peer: template } = f {
+                    Some((p.id, *template))
+                } else {
+                    None
+                }
+            })
+        }) {
+            let a = peer_indices[&peer];
+            let b = peer_indices[&template];
+            graph.add_edge(a, b, ());
+        }
+
+        if petgraph::algo::is_cyclic_directed(&graph) {
+            return Err(String::from("Template dependencies contain a cycle"));
+        }
+
+        let mut dfs = Dfs::new(&graph, peer_indices[&peer]);
+        let mut templates: Vec<u128> = Vec::new();
+        while let Some(v) = dfs.next(&graph) {
+            templates.push(*graph.node_weight(v).unwrap());
+        }
+        templates.retain(|p| *p != peer);
+        Ok(templates)
     }
 }
 
