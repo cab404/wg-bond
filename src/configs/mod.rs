@@ -424,19 +424,26 @@ impl WireguardNetworkInfo {
         }
     }
 
-    pub fn get_configuration(&self, info: &PeerInfo) -> Result<WireguardConfiguration, String> {
+    fn unfold_flags(&self, info: &PeerInfo) -> Result<PeerInfo, String> {
         let templates = self.collect_templates(info.id)?;
         let mut info = info.clone();
 
         // extend info's flags with those contained in templates
-        for flag in templates.iter().flat_map(|t| {
-            self.by_id(*t).unwrap().flags.iter().filter(|f| match f {
-                PeerFlag::UseTemplate { .. } => false,
-                _ => true,
-            })
-        }) {
+        for flag in templates
+            .iter()
+            .flat_map(|t| self.by_id(*t).unwrap().flags.iter())
+        {
             info.flags.insert(0, flag.clone());
         }
+        info.flags.retain(|f| match f {
+            PeerFlag::UseTemplate { .. } => false,
+            _ => true,
+        });
+        Ok(info)
+    }
+
+    pub fn get_configuration(&self, info: &PeerInfo) -> Result<WireguardConfiguration, String> {
+        let info = self.unfold_flags(info)?;
 
         let mut config = WireguardConfiguration {
             interface: self.map_to_interface(&info)?,
@@ -673,4 +680,159 @@ fn first_nbits32(x: u32, n: u8) -> u32 {
 
 fn first_nbits128(x: u128, n: u8) -> u128 {
     x & (u128::MAX << (128 - n))
+}
+
+#[cfg(test)]
+mod config_mod_test {
+    use std::{net::IpAddr, str::FromStr};
+
+    use crate::configs::PeerFlag;
+    use crate::RVoid;
+
+    use crate::tests::{add_peer, edit_peer, new_config};
+
+    fn ip(ip: &str) -> IpAddr {
+        IpAddr::from_str(ip).unwrap()
+    }
+
+    mod templates_test {
+        use crate::configs::{PeerInfo, WireguardNetworkInfo};
+
+        use super::*;
+
+        fn ensure_flags_contained(peer: &PeerInfo, flags: Vec<PeerFlag>) {
+            for flag in flags {
+                assert!(peer.flags.contains(&flag));
+            }
+        }
+
+        #[test]
+        fn test_simple() {
+            (|| -> RVoid {
+                let mut cfg = new_config(None);
+                add_peer(&mut cfg, "DNS")?;
+                edit_peer(&mut cfg, "DNS", "--dns 8.8.8.8")?;
+
+                add_peer(&mut cfg, "peer")?;
+                edit_peer(&mut cfg, "peer", "--use-template DNS --keepalive 30")?;
+
+                edit_peer(&mut cfg, "DNS", "--dns 9.9.9.9")?;
+
+                let peer = cfg.by_name("peer").unwrap();
+                let peer = cfg.unfold_flags(peer)?;
+
+                ensure_flags_contained(
+                    &peer,
+                    vec![
+                        PeerFlag::DNS {
+                            addresses: vec![ip("9.9.9.9")],
+                        },
+                        PeerFlag::Keepalive { keepalive: 30 },
+                    ],
+                );
+
+                Ok(())
+            })()
+            .unwrap();
+        }
+
+        #[test]
+        fn test_cycle() {
+            (|| -> RVoid {
+                let mut cfg = new_config(None);
+                add_peer(&mut cfg, "a")?;
+                add_peer(&mut cfg, "b")?;
+                add_peer(&mut cfg, "c")?;
+
+                edit_peer(&mut cfg, "a", "--use-template b")?;
+                edit_peer(&mut cfg, "b", "--use-template c")?;
+                edit_peer(&mut cfg, "c", "--use-template a")?;
+
+                cfg.unfold_flags(cfg.by_name("a").unwrap())
+                    .expect_err("expected cycle detection");
+                cfg.unfold_flags(cfg.by_name("b").unwrap())
+                    .expect_err("expected cycle detection");
+                cfg.unfold_flags(cfg.by_name("c").unwrap())
+                    .expect_err("expected cycle detection");
+
+                Ok(())
+            })()
+            .unwrap();
+        }
+
+        #[test]
+        fn test_two_layers() {
+            (|| -> RVoid {
+                let mut cfg = new_config(None);
+                add_peer(&mut cfg, "DNS")?;
+                add_peer(&mut cfg, "PHONE")?;
+                add_peer(&mut cfg, "PC")?;
+                add_peer(&mut cfg, "pixel")?;
+                add_peer(&mut cfg, "lenovo")?;
+
+                edit_peer(&mut cfg, "DNS", "--dns 1.1.1.1")?;
+                edit_peer(&mut cfg, "PHONE", "--keepalive 30 --use-template DNS")?;
+                edit_peer(&mut cfg, "PC", "--center --use-template DNS")?;
+                edit_peer(&mut cfg, "pixel", "--use-template PHONE")?;
+                edit_peer(&mut cfg, "lenovo", "--use-template PC")?;
+
+                let pixel = cfg.unfold_flags(cfg.by_name("pixel").unwrap())?;
+                let lenovo = cfg.unfold_flags(cfg.by_name("lenovo").unwrap())?;
+
+                ensure_flags_contained(
+                    &pixel,
+                    vec![
+                        PeerFlag::DNS {
+                            addresses: vec![ip("1.1.1.1")],
+                        },
+                        PeerFlag::Keepalive { keepalive: 30 },
+                    ],
+                );
+
+                ensure_flags_contained(
+                    &lenovo,
+                    vec![
+                        PeerFlag::DNS {
+                            addresses: vec![ip("1.1.1.1")],
+                        },
+                        PeerFlag::Center,
+                    ],
+                );
+
+                edit_peer(&mut cfg, "DNS", "--dns 8.8.8.8")?;
+                edit_peer(&mut cfg, "PHONE", "--keepalive 100")?;
+                edit_peer(&mut cfg, "PC", "--nixops")?;
+
+                let pixel = cfg.unfold_flags(cfg.by_name("pixel").unwrap())?;
+                let lenovo = cfg.unfold_flags(cfg.by_name("lenovo").unwrap())?;
+
+                ensure_flags_contained(
+                    &pixel,
+                    vec![
+                        PeerFlag::DNS {
+                            addresses: vec![ip("8.8.8.8")],
+                        },
+                        PeerFlag::Keepalive { keepalive: 100 },
+                    ],
+                );
+
+                ensure_flags_contained(
+                    &lenovo,
+                    vec![
+                        PeerFlag::DNS {
+                            addresses: vec![ip("8.8.8.8")],
+                        },
+                        PeerFlag::Center,
+                        PeerFlag::NixOpsMachine,
+                    ],
+                );
+
+                assert!(!(lenovo.has_flag("UseTemplate")));
+                assert!(!(pixel.has_flag("UseTemplate")));
+
+                Ok(())
+            })()
+            .unwrap();
+        }
+    }
 }
