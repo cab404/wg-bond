@@ -112,9 +112,13 @@ fn parse_peer_edit_command(
     }
 
     if let Some(template_name) = matches.value_of("use-template") {
-        if let Some(template) = cfg.by_name(template_name) {
-            peer.flags
-                .insert(0, configs::PeerFlag::UseTemplate { peer: template.id });
+        if let Some(_) = cfg.by_name(template_name) {
+            peer.flags.insert(
+                0,
+                configs::PeerFlag::UseTemplate {
+                    peer: template_name.to_string(),
+                },
+            );
         } else {
             Err(format!(
                 "Peer you are trying to use as a template ({}) doesn't exist!",
@@ -510,7 +514,7 @@ fn main() {
             .peers
             .iter()
             .position(|f| f.name == name)
-            .ok_or("".to_string())?;
+            .ok_or(format!("No peer with name '{}' found", name))?;
         cfg.peers.remove(peer);
         Ok(())
     }
