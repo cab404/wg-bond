@@ -77,11 +77,7 @@ fn command_init_config(matches: &clap::ArgMatches) -> configs::WireguardNetworkI
     }
 }
 
-fn parse_peer_edit_command(
-    cfg: &WireguardNetworkInfo,
-    peer: &mut configs::PeerInfo,
-    matches: &clap::ArgMatches,
-) -> RVoid {
+fn parse_peer_edit_command(peer: &mut configs::PeerInfo, matches: &clap::ArgMatches) -> RVoid {
     if let Some(endpoint) = matches.value_of("endpoint") {
         peer.endpoint = Some(check_endpoint(endpoint.to_string())?);
     }
@@ -112,19 +108,12 @@ fn parse_peer_edit_command(
     }
 
     if let Some(template_name) = matches.value_of("use-template") {
-        if let Some(_) = cfg.by_name(template_name) {
-            peer.flags.insert(
-                0,
-                configs::PeerFlag::UseTemplate {
-                    peer: template_name.to_string(),
-                },
-            );
-        } else {
-            Err(format!(
-                "Peer you are trying to use as a template ({}) doesn't exist!",
-                template_name
-            ))?
-        }
+        peer.flags.insert(
+            0,
+            configs::PeerFlag::UseTemplate {
+                peer: template_name.to_string(),
+            },
+        );
     }
 
     if matches.is_present("center") {
@@ -174,7 +163,7 @@ fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Arg
         ips: vec![],
     };
 
-    parse_peer_edit_command(cfg, &mut peer, matches)?;
+    parse_peer_edit_command(&mut peer, matches)?;
 
     for net in &cfg.networks {
         peer.ips.push(cfg.get_free_net_address(*net)?);
@@ -212,12 +201,9 @@ fn command_list_peers(cfg: &configs::WireguardNetworkInfo, _: &clap::ArgMatches)
 
 fn command_edit_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::ArgMatches) -> RVoid {
     let name: String = matches.value_of("name").unwrap().into();
-
-    let cfg_copy = cfg.clone();
     let peer = cfg.by_name_mut(&name).ok_or("No peer with this name.")?;
 
-    parse_peer_edit_command(&cfg_copy, peer, matches)?;
-
+    parse_peer_edit_command(peer, matches)?;
     Ok(())
 }
 

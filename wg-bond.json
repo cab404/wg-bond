@@ -6,58 +6,19 @@
   ],
   "peers": [
     {
-      "name": "DNS",
-      "private_key": "QCTfTeZ9QaopEpOQJKCVnDhBs36Pn55YOHP1fbvav1E=",
+      "name": "1",
+      "private_key": "8ET1CLSUkkU8Fwdm+7fxdrQKgHemGBxqn7hNg5oRE1Y=",
       "id": 1,
       "flags": [
         {
-          "DNS": {
-            "addresses": [
-              "9.9.9.9"
-            ]
+          "UseTemplate": {
+            "peer": "2"
           }
         }
       ],
       "endpoint": null,
       "ips": [
         "10.0.0.1"
-      ]
-    },
-    {
-      "name": "PHONE",
-      "private_key": "EP/BMVprMIDtSovubFmXbHBHPZk2hvqpsgpXhehaM0k=",
-      "id": 2,
-      "flags": [
-        {
-          "Keepalive": {
-            "keepalive": 30
-          }
-        },
-        {
-          "UseTemplate": {
-            "peer": 1
-          }
-        }
-      ],
-      "endpoint": "s.4:9009",
-      "ips": [
-        "10.0.0.2"
-      ]
-    },
-    {
-      "name": "sasha",
-      "private_key": "WFIg/4EwwmNauSQ/kJa73/v/rVsaiiF7kSmzexrAHmg=",
-      "id": 3,
-      "flags": [
-        {
-          "UseTemplate": {
-            "peer": 2
-          }
-        }
-      ],
-      "endpoint": "sasha.ru:9090",
-      "ips": [
-        "10.0.0.3"
       ]
     }
   ],

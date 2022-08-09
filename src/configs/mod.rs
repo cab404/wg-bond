@@ -565,6 +565,9 @@ impl WireguardNetworkInfo {
         }) {
             let a = peer_indices[&peer];
             let b = peer_indices[&template];
+            // let b = peer_indices
+            //     .get(template)
+            //     .ok_or(format!("No peer with name '{}' found", template))?;
             graph.add_edge(a, b, ());
         }
 
