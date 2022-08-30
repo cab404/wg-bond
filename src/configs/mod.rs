@@ -140,23 +140,24 @@ pub struct Peer {
     pub endpoint: Option<String>,
     pub persistent_keepalive: Option<u16>,
 }
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
-pub enum ProxyConfig {
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct ProxyConfig {
     /// Which networks to proxy
-    NetworkList(Vec<IpNetwork>),
+    pub networks: Vec<IpNetwork>,
     /// Whether to proxy whole internet, except [local networks](https://en.wikipedia.org/wiki/Private_network)
-    /// Useful on mobile devices.
+    /// Useful on mobile devices. Can be redundant.
     /// See also [`GLOBAL_NET_V4`] and [`GLOBAL_NET_V6`]
-    GlobalNetworks,
+    pub use_global_networks: bool,
     /// Whether to allow to connect to whole internet
-    SlashZero,
+    pub proxy_internet: bool,
 }
 
 // Describes emergent features of peers, not set by one flag.
 #[derive(Serialize, Deserialize, Debug, AsRefStr, Clone, PartialEq, Eq)]
 pub enum PeerFlag {
     Masquerade { interface: String },
-    UseGateway { peer: String, proxy: ProxyConfig },
+    Gateway { ignore_local_networks: bool },
+    UseGateway { peer: u128, proxy: ProxyConfig },
     Segment { mask: u128 },
     Keepalive { keepalive: u16 },
     DNS { addresses: Vec<IpAddr> },
@@ -220,6 +221,44 @@ impl PeerFlag {
 
     fn apply_to_peer(&self, network: &WireguardNetworkInfo, peer: &mut Peer) {
         match &self {
+            &PeerFlag::UseGateway { proxy, peer } => {
+                let target_peer = network.by_id(*peer).unwrap();
+            }
+            &PeerFlag::Gateway {
+                ignore_local_networks,
+            } => {
+                let has_ipv4 = network.networks.iter().any(IpNetwork::is_ipv4);
+                let has_ipv6 = network.networks.iter().any(IpNetwork::is_ipv6);
+
+                if *ignore_local_networks {
+                    let e: &[&str] = &[];
+                    peer.allowed_ips.append(
+                        &mut empty()
+                            .chain(if has_ipv4 {
+                                GLOBAL_NET_V4.iter()
+                            } else {
+                                e.iter()
+                            })
+                            .chain(if has_ipv6 {
+                                GLOBAL_NET_V6.iter()
+                            } else {
+                                e.iter()
+                            })
+                            .map(|a| IpNetwork::from_str(a).unwrap())
+                            .collect(),
+                    )
+                } else {
+                    if has_ipv4 {
+                        peer.allowed_ips
+                            .insert(0, IpNetwork::from_str("0.0.0.0/0").unwrap())
+                    }
+
+                    if has_ipv6 {
+                        peer.allowed_ips
+                            .insert(0, IpNetwork::from_str("0::/0").unwrap())
+                    }
+                }
+            }
             &PeerFlag::Center => {
                 for network in network.networks.iter().rev() {
                     peer.allowed_ips.insert(0, *network)
@@ -322,51 +361,9 @@ macro_rules! find_pattern {
 }
 
 impl WireguardNetworkInfo {
-    pub fn map_to_peer(&self, peer_interface: &PeerInfo, info: &PeerInfo) -> Result<Peer, String> {
+    pub fn map_to_peer(&self, info: &PeerInfo) -> Result<Peer, String> {
         let mut peer = info.derive_peer()?;
         peer.allowed_ips = info.ips.iter().map(|n| as_network(*n)).collect();
-
-        if let Some(proxy) = peer_interface.flags.iter().find_map(|f| match f {
-            PeerFlag::UseGateway { peer, proxy } if *peer == info.name => Some(proxy),
-            _ => None,
-        }) {
-            let has_ipv4 = self.networks.iter().any(IpNetwork::is_ipv4);
-            let has_ipv6 = self.networks.iter().any(IpNetwork::is_ipv6);
-            match proxy {
-                ProxyConfig::NetworkList(list) => {
-                    peer.allowed_ips.extend(list);
-                }
-                ProxyConfig::GlobalNetworks => {
-                    let e: &[&str] = &[];
-                    peer.allowed_ips.append(
-                        &mut empty()
-                            .chain(if has_ipv4 {
-                                GLOBAL_NET_V4.iter()
-                            } else {
-                                e.iter()
-                            })
-                            .chain(if has_ipv6 {
-                                GLOBAL_NET_V6.iter()
-                            } else {
-                                e.iter()
-                            })
-                            .map(|a| IpNetwork::from_str(a).unwrap())
-                            .collect(),
-                    )
-                }
-                ProxyConfig::SlashZero => {
-                    if has_ipv4 {
-                        peer.allowed_ips
-                            .insert(0, IpNetwork::from_str("0.0.0.0/0").unwrap())
-                    }
-
-                    if has_ipv6 {
-                        peer.allowed_ips
-                            .insert(0, IpNetwork::from_str("0::/0").unwrap())
-                    }
-                }
-            }
-        }
 
         for flag in &info.flags {
             flag.apply_to_peer(self, &mut peer)
@@ -397,11 +394,11 @@ impl WireguardNetworkInfo {
                 .collect::<Vec<_>>()
         };
 
-        if let Some(PeerFlag::UseGateway { peer, .. }) =
+        if let Some(&PeerFlag::UseGateway { peer, .. }) =
             find_pattern!(info.flags => PeerFlag::UseGateway { .. })
         {
             // in this case we only need a gateway
-            let gateway = self.by_name(peer).expect(
+            let gateway = self.by_id(peer).expect(
                 format!(
                     "UseGateway flag on #{} points to nonexistent peer #{}!",
                     info.id, peer
@@ -431,7 +428,7 @@ impl WireguardNetworkInfo {
             peers: self
                 .peer_list(info)
                 .iter()
-                .map(|x| self.map_to_peer(info, x))
+                .map(|x| self.map_to_peer(x))
                 .collect::<Result<Vec<_>, _>>()?,
             name: self.name.clone(),
         };
