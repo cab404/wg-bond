@@ -7,10 +7,12 @@ extern crate serde_json;
 use crate::configs::nix::KeyFileExportConfig;
 use crate::configs::ConfigType;
 use crate::configs::{check_endpoint, IpNetDifference};
+use crate::wg_tools::{gen_private_key, gen_public_key};
 use ipnetwork::IpNetwork;
 use std::collections::HashSet;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::net::IpAddr;
+use std::process::exit;
 use std::str::FromStr;
 
 use configs::conf::ConfFile;
@@ -158,7 +160,7 @@ fn command_new_peer(cfg: &mut configs::WireguardNetworkInfo, matches: &clap::Arg
         name,
         endpoint: None,
         id: peer_id,
-        private_key: wg_tools::gen_private_key(),
+        private_key: wg_tools::gen_private_key(None),
         flags: vec![],
         ips: vec![],
     };
@@ -444,6 +446,8 @@ fn main_app<'a>() -> clap::Command<'a> {
             ),
     )
     .subcommand(clap::Command::new("hosts").about("Generates /etc/hosts for all peers"))
+    .subcommand(clap::Command::new("genkey").about("== wg genkey"))
+    .subcommand(clap::Command::new("pubkey").about("== wg pubkey"))
     .subcommand(
         clap::Command::new("rm").about("Deletes a peer").arg(
             clap::Arg::new("name")
@@ -543,6 +547,18 @@ fn main() {
                 command_export::<NixConf>(net, matches, conf)
             }
             Some(("conf", matches)) => command_export::<ConfFile>(net, matches, ()),
+            Some(("genkey", _)) => {
+                println!("{}", gen_private_key(None));
+                Ok(())
+            }
+            Some(("pubkey", _)) => {
+                let mut pb = String::new();
+                std::io::stdin()
+                    .read_to_string(&mut pb)
+                    .map_err(|_| "Can't get a key from stream".to_string())?;
+                println!("{}", gen_public_key(pb.trim())?);
+                Ok(())
+            }
             Some(("qr", matches)) => command_export::<QRConfig>(net, matches, ()),
             Some(("rm", matches)) => command_remove(net, matches),
             Some(("hosts", _)) => {
@@ -576,7 +592,10 @@ fn main() {
         Ok(()) => {
             save_config(&net, cfg_file).unwrap();
         }
-        Err(e) => println!("{}", e),
+        Err(e) => {
+            println!("{}", e);
+            exit(1);
+        }
     }
 }
 
