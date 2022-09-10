@@ -7,42 +7,18 @@
   "peers": [
     {
       "name": "1",
-      "private_key": "2KT/BLCWqWWONoRuQzlTY+H/mbPPfZ5vAG+cp95duEk=",
+      "private_key": "8ET1CLSUkkU8Fwdm+7fxdrQKgHemGBxqn7hNg5oRE1Y=",
       "id": 1,
       "flags": [
         {
-          "DNS": {
-            "addresses": [
-              "8.8.8.4"
-            ]
-          }
-        },
-        {
-          "Gateway": {
-            "ignore_local_networks": true
-          }
-        },
-        {
-          "Keepalive": {
-            "keepalive": 30
+          "UseTemplate": {
+            "peer": "2"
           }
         }
       ],
-      "endpoint": "hello.world:8080",
-      "ips": [
-        "10.0.0.1"
-      ]
-    },
-    {
-      "name": "2",
-      "private_key": "cGtVWUqdjDdkzS7tpcaRwSyN4yKX2j7jRK9uH2WncWg=",
-      "id": 2,
-      "flags": [
-        "Template"
-      ],
       "endpoint": null,
       "ips": [
-        "10.0.0.2"
+        "10.0.0.1"
       ]
     }
   ],
