@@ -341,15 +341,16 @@ pub struct WireguardNetworkInfo {
     pub flags: Vec<NetworkFlag>,
     pub networks: Vec<IpNetwork>,
     pub peers: Vec<PeerInfo>,
-    // Non-overlapping ignored subnets
-    pub ignored_ipv4: HashSet<Ipv4Network>,
-    pub ignored_ipv6: HashSet<Ipv6Network>,
 }
 
 #[derive(Serialize, Deserialize, Debug, AsRefStr, Clone)]
 pub enum NetworkFlag {
     Centralized,
-    // TODO: Add symmetric keys overlay
+    IgnoredIPs {
+        // Non-overlapping ignored subnets
+        ignored_ipv4: HashSet<Ipv4Network>,
+        ignored_ipv6: HashSet<Ipv6Network>,
+    },
 }
 
 /// Searches for an item matching given pattern
@@ -359,6 +360,48 @@ macro_rules! find_pattern {
             $pat => true,
             _ => false,
         })
+    };
+}
+
+/// Searches for an item with a given pattern, then mutates it.
+/// If it doesn't find the pattern, creates and adds a default value, applying mutation to it.
+macro_rules! mutate_item_pattern {
+    ($self:expr => $pat:pat => $default:expr, $mapping:expr) => {
+        let target = if let Some(target) = $self.iter_mut().find(|t| match t {
+            $pat => true,
+            _ => false,
+        }) {
+            target
+        } else {
+            let default = $default;
+            $self.insert($self.len(), default);
+            $self.iter_mut().last().unwrap()
+        };
+        if let $pat = target {
+            $mapping
+        } else {
+            panic!("Prob our default value doesn't satisfy pattern.");
+        }
+    };
+}
+
+/// Searches for an item with a given pattern, then mutates it.
+/// If it doesn't find the pattern, uses a default value.
+macro_rules! map_item_pattern {
+    { $self:expr => $pat:pat => $default:expr => $($block:tt)* } => {
+        let target = if let Some(target) = $self.iter().find(|t| match t {
+            $pat => true,
+            _ => false,
+        }) {
+            target
+        } else {
+            $default;
+        };
+        if let $pat = target {
+            $($block)*
+        } else {
+            panic!("Prob our default value doesn't satisfy pattern.");
+        }
     };
 }
 
@@ -480,13 +523,19 @@ impl WireguardNetworkInfo {
 
     fn first_unignored_ipv4(&self, ip: Ipv4Addr, net: Ipv4Network) -> Option<Ipv4Addr> {
         let mut ip = ip;
-        while let Some(n) = self.ignored_ipv4.iter().find(|n| n.contains(ip.into())) {
-            // This way we can only increase IP
-            // because overlaps => end of range is greater
-            ip = u32::from(n.ip()).checked_add(n.size())?.into();
-        }
-        if net.contains(ip) {
-            Some(ip)
+        if let Some(NetworkFlag::IgnoredIPs { ignored_ipv4, .. }) =
+            find_pattern!(self.flags => NetworkFlag::IgnoredIPs { .. })
+        {
+            while let Some(n) = ignored_ipv4.iter().find(|n| n.contains(ip.into())) {
+                // This way we can only increase IP
+                // because overlaps => end of range is greater
+                ip = u32::from(n.ip()).checked_add(n.size())?.into();
+            }
+            if net.contains(ip) {
+                Some(ip)
+            } else {
+                None
+            }
         } else {
             None
         }
@@ -494,11 +543,17 @@ impl WireguardNetworkInfo {
 
     fn first_unignored_ipv6(&self, ip: Ipv6Addr, net: Ipv6Network) -> Option<Ipv6Addr> {
         let mut ip = ip;
-        while let Some(n) = self.ignored_ipv6.iter().find(|n| n.contains(ip.into())) {
-            ip = u128::from(n.ip()).checked_add(n.size())?.into();
-        }
-        if net.contains(ip) {
-            Some(ip)
+        if let Some(NetworkFlag::IgnoredIPs { ignored_ipv6, .. }) =
+            find_pattern!(self.flags => NetworkFlag::IgnoredIPs { .. })
+        {
+            while let Some(n) = ignored_ipv6.iter().find(|n| n.contains(ip.into())) {
+                ip = u128::from(n.ip()).checked_add(n.size())?.into();
+            }
+            if net.contains(ip) {
+                Some(ip)
+            } else {
+                None
+            }
         } else {
             None
         }

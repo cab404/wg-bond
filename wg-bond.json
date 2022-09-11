@@ -1,6 +1,15 @@
 {
   "name": "net",
-  "flags": [],
+  "flags": [
+    {
+      "IgnoredIPs": {
+        "ignored_ipv4": [
+          "10.0.10.10/32"
+        ],
+        "ignored_ipv6": []
+      }
+    }
+  ],
   "networks": [
     "10.0.0.0/24"
   ],
@@ -20,8 +29,26 @@
       "ips": [
         "10.0.0.1"
       ]
+    },
+    {
+      "name": "3",
+      "private_key": "uF/JA4Vl9WD/QkcAhjsjAk7fy28B12M8TmHJT0jXMUQ=",
+      "id": 3,
+      "flags": [],
+      "endpoint": null,
+      "ips": [
+        "10.0.0.3"
+      ]
+    },
+    {
+      "name": "4",
+      "private_key": "+AU+xo9DgEwYA5lOJAxnMP2Lgv2hfx4PG59Wdd+6r1c=",
+      "id": 4,
+      "flags": [],
+      "endpoint": null,
+      "ips": [
+        "10.0.0.4"
+      ]
     }
-  ],
-  "ignored_ipv4": [],
-  "ignored_ipv6": []
+  ]
 }
