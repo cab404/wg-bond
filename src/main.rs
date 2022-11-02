@@ -260,7 +260,7 @@ fn command_export_secrets(
     matches: &clap::ArgMatches,
 ) -> std::io::Result<()> {
     let export_dir = matches.value_of("target").expect("no panik");
-    for peer in &cfg.real_peers() {
+    for peer in cfg.real_peers() {
         std::fs::create_dir_all(format!("{}/{}", export_dir, peer.name))?;
         let mut f = std::fs::OpenOptions::new()
             .write(true)
