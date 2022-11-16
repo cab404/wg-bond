@@ -38,7 +38,7 @@ impl ConfigType for NixConf {
         }
 
         let mut built = String::new();
-        built += format!("networking.wg-quick.interfaces.\"{}\"={{", &config.name).as_str();
+        built += format!("{{networking.wg-quick.interfaces.\"{}\"={{", &config.name).as_str();
 
         if let Some(KeyFileExportConfig { target_prefix }) = export_options.use_keyfile {
             built += format!(
