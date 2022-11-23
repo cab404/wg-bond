@@ -12,7 +12,7 @@ pub fn write_config(
 
     built += "{";
 
-    built += "defaults={networking.extraHosts=\"";
+    built += "defaults={networking.extrazHosts=\"";
     built += hosts::export_hosts(net)?
         .replace("\"", "\\\"")
         .replace("\n", "\\n")

@@ -15,22 +15,6 @@
   ],
   "peers": [
     {
-      "name": "1",
-      "private_key": "8ET1CLSUkkU8Fwdm+7fxdrQKgHemGBxqn7hNg5oRE1Y=",
-      "id": 1,
-      "flags": [
-        {
-          "UseTemplate": {
-            "peer": "2"
-          }
-        }
-      ],
-      "endpoint": null,
-      "ips": [
-        "10.0.0.1"
-      ]
-    },
-    {
       "name": "3",
       "private_key": "uF/JA4Vl9WD/QkcAhjsjAk7fy28B12M8TmHJT0jXMUQ=",
       "id": 3,
