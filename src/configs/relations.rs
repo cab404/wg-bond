@@ -39,10 +39,7 @@ where
                     .iter()
                     .filter(|((qa, _qb), _rel)| qa.matches(&node_a))
                     .flat_map(|((_qa, qb), rel)| {
-                        self.nodes
-                            .iter()
-                            .filter_query(qb)
-                            .map(move |x| (x.clone(), rel))
+                        self.nodes.iter().filter_query(qb).map(move |x| (x, rel))
                     })
                     .fold(initial, |cum, (node_b, rel)| {
                         Resolver::resolve(&rel)(node_a, node_b, cum)
