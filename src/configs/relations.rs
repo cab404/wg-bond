@@ -2,6 +2,8 @@ use std::{cmp::Ordering, collections::HashSet, iter::Filter};
 
 use strum_macros::Display;
 
+use serde_json;
+
 pub trait Node {
     fn tags(&self) -> &Vec<String>;
     fn id(&self) -> &String;
@@ -11,21 +13,21 @@ type RelationID = String;
 
 type Reference = (Query, Query);
 
-struct System<NodeType>
+struct System<NodeType, RelationParameters>
 where
     for<'a> &'a NodeType: Node,
 {
     nodes: Vec<NodeType>,
-    relations: Vec<(Reference, RelationID)>,
+    relations: Vec<(Reference, RelationID, RelationParameters)>,
 }
 
-impl<NodeType> System<NodeType>
+impl<NodeType, RelationParameters> System<NodeType, RelationParameters>
 where
     for<'a> &'a NodeType: Node,
 {
     fn query<Resolver, OutputType>(&self, q: Query) -> Vec<OutputType>
     where
-        Resolver: RelationResolver<NodeType, OutputType>,
+        Resolver: RelationResolver<NodeType, OutputType, RelationParameters>,
         OutputType: Default,
         // wow first time actually using hrtb in production
         for<'a> &'a NodeType: Node,
@@ -37,22 +39,25 @@ where
                 let initial = OutputType::default();
                 self.relations
                     .iter()
-                    .filter(|((qa, _qb), _rel)| qa.matches(&node_a))
-                    .flat_map(|((_qa, qb), rel)| {
-                        self.nodes.iter().filter_query(qb).map(move |x| (x, rel))
+                    .filter(|((qa, _qb), _rel, params)| qa.matches(&node_a))
+                    .flat_map(|((_qa, qb), rel, params)| {
+                        self.nodes
+                            .iter()
+                            .filter_query(qb)
+                            .map(move |x| (x, rel, params))
                     })
-                    .fold(initial, |cum, (node_b, rel)| {
-                        Resolver::resolve(&rel)(node_a, node_b, cum)
+                    .fold(initial, |cum, (node_b, rel, params)| {
+                        Resolver::resolve(&rel)(params, node_a, node_b, cum)
                     })
             })
             .collect::<Vec<_>>()
     }
 }
 
-trait RelationResolver<NodeType, OutputType> {
+trait RelationResolver<NodeT, OutputT, ParameterT> {
     fn resolve<'a>(
         name: &RelationID,
-    ) -> &'a dyn Fn(&'a NodeType, &'a NodeType, OutputType) -> OutputType;
+    ) -> &'a dyn Fn(&'a ParameterT, &'a NodeT, &'a NodeT, OutputT) -> OutputT;
 }
 
 // Something which gets applied on a node pair if relation exists
@@ -68,6 +73,30 @@ enum Query {
     All(),
 }
 impl Query {
+    pub fn has_id(id: &'static str) -> Query {
+        Query::HasID(id.to_string())
+    }
+
+    pub fn has_tag(id: &'static str) -> Query {
+        Query::HasTag(id.to_string())
+    }
+
+    pub fn or(a: Query, b: Query) -> Query {
+        Query::Or(Box::new(a), Box::new(b))
+    }
+
+    pub fn and(a: Query, b: Query) -> Query {
+        Query::And(Box::new(a), Box::new(b))
+    }
+
+    pub fn not(a: Query) -> Query {
+        Query::Not(Box::new(a))
+    }
+
+    pub fn all() -> Query {
+        Query::All()
+    }
+
     pub fn matches(&self, item: &dyn Node) -> bool {
         match self {
             Query::And(a, b) => a.matches(item) && b.matches(item),
@@ -140,15 +169,21 @@ impl Node for &TNode {
 
 struct TestResolver;
 
-impl RelationResolver<TNode, Vec<(String, String)>> for TestResolver {
+impl RelationResolver<TNode, Vec<(String, String)>, ()> for TestResolver {
     fn resolve<'a>(
         _name: &RelationID,
-    ) -> &'a dyn Fn(&'a TNode, &'a TNode, Vec<(String, String)>) -> Vec<(String, String)> {
-        &crate::configs::relations::f
+    ) -> &'a dyn Fn(&'a (), &'a TNode, &'a TNode, Vec<(String, String)>) -> Vec<(String, String)>
+    {
+        &test_resolution
     }
 }
 
-fn f(a: &TNode, b: &TNode, c: Vec<(String, String)>) -> Vec<(String, String)> {
+fn test_resolution(
+    _: &(),
+    a: &TNode,
+    b: &TNode,
+    c: Vec<(String, String)>,
+) -> Vec<(String, String)> {
     let mut c = c.clone();
     c.push((a.id.clone(), b.id.clone()));
     c
@@ -181,18 +216,14 @@ pub fn test_queries() {
         ],
         relations: vec![
             (
-                (
-                    Query::HasID("tiferet".to_string()),
-                    Query::HasTag("net:tiferet".to_string()),
-                ),
+                (Query::has_id("tiferet"), Query::has_tag("net:tiferet")),
                 "provide-net".to_string(),
+                (),
             ),
             (
-                (
-                    Query::HasTag("net:tiferet".to_string()),
-                    Query::HasID("tiferet".to_string()),
-                ),
+                (Query::has_tag("net:tiferet"), Query::has_id("tiferet")),
                 "host".to_string(),
+                (),
             ),
         ],
     };
@@ -200,7 +231,7 @@ pub fn test_queries() {
     // let f: std::slice::Iter<TNode> = vec.iter();
     // let r: std::vec::IntoIter<TNode> = vec.into_iter();
 
-    println!("{:?}", system.query::<TestResolver, _>(Query::All()));
+    println!("{:?}", system.query::<TestResolver, _>(Query::all()));
 }
 
 // // Something getting applied on a node if
