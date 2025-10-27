@@ -1,0 +1,9 @@
+{
+  "files": ["awgugwa.ts"],
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "target": "es2020",
+    "lib": ["es2020", "DOM"]
+  }
+}

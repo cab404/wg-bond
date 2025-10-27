@@ -1,0 +1,454 @@
+{
+  "$ref": "#/definitions/NetworkConfig",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "NetworkConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "$schema": {
+          "const": "./config.schema.json",
+          "type": "string"
+        },
+        "hosts": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "description": "Something something else",
+            "properties": {
+              "endpoint": {
+                "description": "Something something",
+                "type": "string"
+              },
+              "id": {
+                "type": "number"
+              },
+              "port": {
+                "type": "number"
+              },
+              "tags": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "tags"
+            ],
+            "type": "object"
+          },
+          "type": "object"
+        },
+        "network": {
+          "additionalProperties": false,
+          "properties": {
+            "awg": {
+              "additionalProperties": false,
+              "properties": {
+                "H1": {
+                  "type": "string"
+                },
+                "H2": {
+                  "type": "string"
+                },
+                "H3": {
+                  "type": "string"
+                },
+                "H4": {
+                  "type": "string"
+                },
+                "Jc": {
+                  "type": "string"
+                },
+                "Jmax": {
+                  "type": "string"
+                },
+                "Jmin": {
+                  "type": "string"
+                },
+                "S1": {
+                  "type": "string"
+                },
+                "S2": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "Jc",
+                "Jmin",
+                "Jmax",
+                "S1",
+                "S2",
+                "H1",
+                "H2",
+                "H3",
+                "H4"
+              ],
+              "type": "object"
+            },
+            "interface_name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "interface_name"
+          ],
+          "type": "object"
+        },
+        "properties": {
+          "items": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "const": "interface-option",
+                    "type": "string"
+                  },
+                  "name": {
+                    "const": "PrivateKey",
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "action",
+                  "name",
+                  "target",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "const": "interface-option",
+                    "type": "string"
+                  },
+                  "name": {
+                    "const": "ListenPort",
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "action",
+                  "name",
+                  "target",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "const": "interface-option",
+                    "type": "string"
+                  },
+                  "name": {
+                    "const": "Address",
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "action",
+                  "name",
+                  "target",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "const": "interface-option",
+                    "type": "string"
+                  },
+                  "name": {
+                    "const": "Table",
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "action",
+                  "name",
+                  "target",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "const": "interface-option",
+                    "type": "string"
+                  },
+                  "name": {
+                    "const": "PreUp",
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "action",
+                  "name",
+                  "target",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "const": "interface-option",
+                    "type": "string"
+                  },
+                  "name": {
+                    "const": "PreDown",
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "action",
+                  "name",
+                  "target",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "const": "interface-option",
+                    "type": "string"
+                  },
+                  "name": {
+                    "const": "PostUp",
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "action",
+                  "name",
+                  "target",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "const": "interface-option",
+                    "type": "string"
+                  },
+                  "name": {
+                    "const": "PostDown",
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "action",
+                  "name",
+                  "target",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "const": "masquerade",
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "action",
+                  "target"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "const": "assign-ip",
+                    "type": "string"
+                  },
+                  "cidr": {
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "action",
+                  "cidr",
+                  "target"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "type": "array"
+        },
+        "relations": {
+          "items": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "const": "proxy",
+                    "type": "string"
+                  },
+                  "cidr": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "action",
+                  "cidr",
+                  "from",
+                  "to"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "const": "keepalive",
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string"
+                  },
+                  "time": {
+                    "type": "number"
+                  },
+                  "to": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "action",
+                  "from",
+                  "time",
+                  "to"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "const": "mention",
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "action",
+                  "from",
+                  "to"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "network",
+        "hosts",
+        "relations",
+        "properties"
+      ],
+      "type": "object"
+    }
+  }
+}

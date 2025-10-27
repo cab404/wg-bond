@@ -1,4 +1,6 @@
-/target
-**/*.rs.bk
-.idea
 .direnv
+node_modules
+configs
+secrets.json
+network_config.json
+
